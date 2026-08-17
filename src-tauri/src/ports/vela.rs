@@ -20,12 +20,21 @@ use super::{
     PortError, ProcessOutput, ProcessSpec, ensure_not_truncated, process::utf8, run_bounded,
 };
 
-pub(crate) const INTERFACE_COMMIT: &str = "3bfcf23f12fb6a38a924a257ba25ad3d8594dc78";
-pub(crate) const INTERFACE_TREE: &str = "ab85ef6ec7f6cd7c49fc4664bbbbd4f597e71816";
-pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.0";
-pub(crate) const RUNTIME_COMMIT: &str = "00d567c879138733ba22949efc985b54578c148b";
-pub(crate) const MACOS_ARM64_RUNTIME_SHA256: &str =
-    "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c";
+pub(crate) const INTERFACE_COMMIT: &str = "0e057c0debcff775a3deb56150ceaccfd4707b41";
+pub(crate) const INTERFACE_TREE: &str = "55768612b82b93a4a01bb5aeddeb937dff678e4a";
+pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.1";
+pub(crate) const RUNTIME_COMMIT: &str = "0e057c0debcff775a3deb56150ceaccfd4707b41";
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
+    "a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948";
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
+    "3c25344f2a636a803d82fd7cf663e5638778d1121198301f478ff3dcc18f0270";
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64")
+)))]
+pub(crate) const PLATFORM_RUNTIME_SHA256: &str = "";
 
 #[derive(Debug)]
 enum Envelope<T> {
@@ -80,10 +89,14 @@ fn sha256(path: &Path) -> Result<String, PortError> {
         .collect())
 }
 
+fn accepted_runtime_sha256(digest: &str) -> bool {
+    !PLATFORM_RUNTIME_SHA256.is_empty() && digest == PLATFORM_RUNTIME_SHA256
+}
+
 pub(crate) fn inspect_binary(path: &Path) -> Result<VelaBinaryDto, PortError> {
     let path = executable(path)?;
     let digest = sha256(&path)?;
-    if digest != MACOS_ARM64_RUNTIME_SHA256 {
+    if !accepted_runtime_sha256(&digest) {
         return Ok(VelaBinaryDto {
             path: path.display().to_string(),
             version: "not executed (unrecognized binary hash)".into(),
@@ -116,12 +129,10 @@ pub(crate) fn inspect_binary(path: &Path) -> Result<VelaBinaryDto, PortError> {
             "selected Vela executable changed during identity verification".into(),
         ));
     }
-    let state = if version != RUNTIME_VERSION {
-        VelaBinaryStateDto::Unsupported
-    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    let state = if version == RUNTIME_VERSION {
         VelaBinaryStateDto::SignedRuntimeBaseline
     } else {
-        VelaBinaryStateDto::VersionMatchHashUnrecognized
+        VelaBinaryStateDto::Unsupported
     };
     Ok(VelaBinaryDto {
         path: path.display().to_string(),
@@ -132,7 +143,7 @@ pub(crate) fn inspect_binary(path: &Path) -> Result<VelaBinaryDto, PortError> {
 }
 
 fn run_json(binary: &Path, repository: &Path, args: &[&str]) -> Result<ProcessOutput, PortError> {
-    if sha256(binary)? != MACOS_ARM64_RUNTIME_SHA256 {
+    if !accepted_runtime_sha256(&sha256(binary)?) {
         return Err(PortError::Unsupported(
             "selected Vela executable changed after identity verification".into(),
         ));
@@ -146,7 +157,7 @@ fn run_json(binary: &Path, repository: &Path, args: &[&str]) -> Result<ProcessOu
     let mut spec = ProcessSpec::new(binary, repository).args(argv);
     spec.timeout = Duration::from_secs(10);
     let output = run_bounded(spec)?;
-    if sha256(binary)? != MACOS_ARM64_RUNTIME_SHA256 {
+    if !accepted_runtime_sha256(&sha256(binary)?) {
         return Err(PortError::Unsupported(
             "selected Vela executable changed during bounded inspection".into(),
         ));
@@ -416,7 +427,7 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unavailable".into(),
                     code: None,
-                    message: "Select the installed signed Vela v0.977.0 executable to classify this repository.".into(),
+                    message: "Select the installed signed Vela v0.977.1 executable to classify this repository.".into(),
                     hint: None,
                     command: "vela --version".into(),
                 }),
@@ -437,8 +448,8 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unsupported".into(),
                     code: None,
-                    message: "Runtime execution is pinned to signed Vela v0.977.0 with the reviewed platform hash.".into(),
-                    hint: Some("Choose the installed signed release binary. Merged Core main is an interface target, not a runtime.".into()),
+                    message: "Runtime execution is pinned to signed Vela v0.977.1 with the reviewed platform hash.".into(),
+                    hint: Some("Choose the installed signed v0.977.1 release binary for this platform.".into()),
                     command: "vela --version".into(),
                 }),
             },
@@ -549,9 +560,10 @@ mod tests {
     use std::{fs, path::Path};
 
     use super::{
-        ClaimsV1Wire, Envelope, IntegrationCheckV1Wire, IntegrationInspectionV1Wire, StatusV4Wire,
-        VelaBinaryStateDto, inspect_binary, parse_envelope, validate_claims, validate_integration,
-        validate_status,
+        ClaimsV1Wire, Envelope, IntegrationCheckV1Wire, IntegrationInspectionV1Wire,
+        PLATFORM_RUNTIME_SHA256, RUNTIME_VERSION, StatusV4Wire, VelaBinaryStateDto,
+        accepted_runtime_sha256, inspect_binary, parse_envelope, validate_claims,
+        validate_integration, validate_status,
     };
     use crate::ports::ProcessOutput;
 
@@ -570,7 +582,7 @@ mod tests {
     #[test]
     fn frozen_status_and_claims_validate_together() {
         let status = match parse_envelope::<StatusV4Wire>(
-            &fixture("../fixtures/core/3bfcf23f/status-math-v0977.json"),
+            &fixture("../fixtures/core/v0.977.1/status-math-v09771.json"),
             "vela.status.v4",
             "status",
         )
@@ -580,7 +592,7 @@ mod tests {
             Envelope::Failure(_) => panic!("fixture unexpectedly refused"),
         };
         let claims = match parse_envelope::<ClaimsV1Wire>(
-            &fixture("../fixtures/core/3bfcf23f/claims-math-v0977.json"),
+            &fixture("../fixtures/core/v0.977.1/claims-math-v09771.json"),
             "vela.claims.v1",
             "claims",
         )
@@ -595,7 +607,7 @@ mod tests {
     #[test]
     fn frozen_integration_preserves_non_authority() {
         let check = match parse_envelope::<IntegrationCheckV1Wire>(
-            &fixture("../fixtures/core/3bfcf23f/integration-check-lean-proofs-v0977.json"),
+            &fixture("../fixtures/core/v0.977.1/integration-check-lean-proofs-v09771.json"),
             "vela.cli.integration-check.v1",
             "integration check",
         )
@@ -605,7 +617,7 @@ mod tests {
             Envelope::Failure(_) => panic!("fixture unexpectedly refused"),
         };
         let inspection = match parse_envelope::<IntegrationInspectionV1Wire>(
-            &fixture("../fixtures/core/3bfcf23f/integration-inspect-lean-proofs-v0977.json"),
+            &fixture("../fixtures/core/v0.977.1/integration-inspect-lean-proofs-v09771.json"),
             "vela.cli.integration-inspection.v1",
             "integration inspect",
         )
@@ -620,6 +632,41 @@ mod tests {
             view.does_not_establish
                 .iter()
                 .any(|value| value == "Standing")
+        );
+    }
+
+    #[test]
+    fn frozen_release_manifests_bind_v09771_source_and_platform_binaries() {
+        let manifest = |name: &str| -> serde_json::Value {
+            let bytes = std::fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../fixtures/core/v0.977.1/release")
+                    .join(name),
+            )
+            .expect("release manifest fixture");
+            serde_json::from_slice(&bytes).expect("release manifest JSON")
+        };
+        let macos = manifest("vela-macos-aarch64.zip.release-manifest.json");
+        let linux = manifest("vela-linux-x86_64.tar.gz.release-manifest.json");
+        for value in [&macos, &linux] {
+            assert_eq!(value["schema"], "vela.release-bundle-manifest.v1");
+            assert_eq!(value["release"]["version"], "0.977.1");
+            assert_eq!(
+                value["source"]["commit"],
+                "0e057c0debcff775a3deb56150ceaccfd4707b41"
+            );
+            assert_eq!(
+                value["source"]["tree"],
+                "55768612b82b93a4a01bb5aeddeb937dff678e4a"
+            );
+        }
+        assert_eq!(
+            macos["binary"]["sha256"],
+            "sha256:a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948"
+        );
+        assert_eq!(
+            linux["binary"]["sha256"],
+            "sha256:3c25344f2a636a803d82fd7cf663e5638778d1121198301f478ff3dcc18f0270"
         );
     }
 
@@ -652,6 +699,19 @@ mod tests {
         }
     }
 
+    #[cfg(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        all(target_os = "linux", target_arch = "x86_64")
+    ))]
+    #[test]
+    fn runtime_policy_accepts_only_signed_v09771_for_this_platform() {
+        assert_eq!(RUNTIME_VERSION, "vela 0.977.1");
+        assert!(accepted_runtime_sha256(PLATFORM_RUNTIME_SHA256));
+        assert!(!accepted_runtime_sha256(
+            "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c"
+        ));
+    }
+
     #[cfg(unix)]
     #[test]
     fn unrecognized_executable_symlink_is_hashed_without_execution() {
@@ -663,7 +723,7 @@ mod tests {
         fs::write(
             &executable,
             format!(
-                "#!/bin/sh\ntouch '{}'\necho vela 0.977.0\n",
+                "#!/bin/sh\ntouch '{}'\necho vela 0.977.1\n",
                 marker.display()
             ),
         )

@@ -6,11 +6,11 @@ import type { BootstrapDto, RepositorySnapshotDto } from "./contracts/generated/
 const bootstrap: BootstrapDto = {
   preferences: { recent_repositories: [], vela_binary_path: "/usr/local/bin/vela" },
   runtime: {
-    interface_commit: "3bfcf23f12fb6a38a924a257ba25ad3d8594dc78",
-    interface_tree: "ab85ef6ec7f6cd7c49fc4664bbbbd4f597e71816",
-    runtime_version: "vela 0.977.0",
-    runtime_commit: "00d567c879138733ba22949efc985b54578c148b",
-    runtime_sha256: "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c",
+    interface_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
+    interface_tree: "55768612b82b93a4a01bb5aeddeb937dff678e4a",
+    runtime_version: "vela 0.977.1",
+    runtime_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
+    runtime_sha256: "a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948",
     read_only: true,
   },
 };
@@ -32,7 +32,7 @@ const snapshot: RepositorySnapshotDto = {
     entire_checkpoints: [],
   },
   vela: {
-    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.0", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
+    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.1", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
     status: {
       repository_id: "vela-math", repository_name: "Vela Math", repository_profile_root: "profile-root",
       repository_root: "repository-root", origin_root: "origin-root", authority_keyset_root: "keys-root",
@@ -69,7 +69,7 @@ describe("Vela Workbench Tranche 1", () => {
     render(<App />);
     expect(await screen.findByText("Start from sovereign source")).toBeVisible();
     expect(screen.getByText("Private files and credentials stay local.")).toBeVisible();
-    expect(await screen.findByText("vela 0.977.0")).toBeVisible();
+    expect(await screen.findByText("vela 0.977.1")).toBeVisible();
   });
 
   it("orients from a selected repository and exposes only exact handoffs", async () => {

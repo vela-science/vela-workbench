@@ -44,7 +44,7 @@ fn runtime_policy() -> RuntimePolicyDto {
         interface_tree: ports::vela::INTERFACE_TREE.into(),
         runtime_version: ports::vela::RUNTIME_VERSION.into(),
         runtime_commit: ports::vela::RUNTIME_COMMIT.into(),
-        runtime_sha256: ports::vela::MACOS_ARM64_RUNTIME_SHA256.into(),
+        runtime_sha256: ports::vela::PLATFORM_RUNTIME_SHA256.into(),
         read_only: true,
     }
 }

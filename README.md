@@ -14,10 +14,11 @@ The renderer invokes six compiled private IPC commands. Rust canonicalizes paths
 - Tauri CLI `2.11.4`, Tauri API `2.11.1`
 - Rust `1.97.1`, edition 2024
 - Bun lockfile with React `19.2.8`, TypeScript `5.8.3`, Vite `7.3.6`, Tailwind `4.3.3`, Base UI `1.7.0`
-- Merged Core interface target `3bfcf23f12fb6a38a924a257ba25ad3d8594dc78`, tree `ab85ef6ec7f6cd7c49fc4664bbbbd4f597e71816`
-- Executable runtime baseline `vela 0.977.0`, commit `00d567c879138733ba22949efc985b54578c148b`, macOS arm64 SHA-256 `4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c`
+- Signed Core release `v0.977.1`, commit `0e057c0debcff775a3deb56150ceaccfd4707b41`, tree `55768612b82b93a4a01bb5aeddeb937dff678e4a`, Protocol 1 manifest root `sha256:448e7e80ac1ead40045d87df51f4352e80091c09ceae6e5acea250795b5ff9ed`
+- macOS arm64 runtime SHA-256 `a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948`; release manifest SHA-256 `6942a9f215909a55e849c7722a49ea961ef6259294c9f8ca36f944d6fd88d884`
+- Linux x86_64 runtime SHA-256 `3c25344f2a636a803d82fd7cf663e5638778d1121198301f478ff3dcc18f0270`; release manifest SHA-256 `6cd034646b57b1c5e8c3d85a95a882a3221f7277c543f6bdde69fc9757b423e4`
 
-The runtime-interface gap is explicit: UI and fixtures target merged Core main, but subprocess execution remains pinned to the signed v0.977.0 binary. A later signed compatible Core release must carry the reviewed merged interface before Workbench can update its runtime version, commit, binary hash, and frozen fixtures together.
+The prior merged-interface/runtime split is closed: interface fixtures and executable gating now name the same immutable signed v0.977.1 release. Each supported build accepts exactly one platform binary hash and one runtime version; v0.977.0 is not an alternate path.
 
 ## Development
 

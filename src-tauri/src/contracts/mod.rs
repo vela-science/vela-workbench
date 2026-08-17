@@ -42,7 +42,6 @@ pub enum RepositoryClassificationDto {
 #[serde(rename_all = "snake_case")]
 pub enum VelaBinaryStateDto {
     SignedRuntimeBaseline,
-    VersionMatchHashUnrecognized,
     Unsupported,
 }
 

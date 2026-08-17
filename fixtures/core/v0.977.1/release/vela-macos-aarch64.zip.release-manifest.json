@@ -1,0 +1,69 @@
+{
+  "assets": [
+    {
+      "bytes": 2683790,
+      "kind": "archive",
+      "name": "vela-macos-aarch64.zip",
+      "sha256": "sha256:c4e591c8683754ac0e310912b5227a697213bd4812e836ac88bef40430d9e7a6"
+    },
+    {
+      "bytes": 194324,
+      "kind": "sbom",
+      "name": "vela-macos-aarch64.zip.spdx.json",
+      "sha256": "sha256:120ea23bb0beaa8f89c9f3e8293a9515cbef42718cb4fdd6ee0e0a1ab735019c"
+    }
+  ],
+  "attestation": {
+    "build_provenance": "actions/attest-build-provenance",
+    "note": "actions/attest-build-provenance is bound to a GitHub Actions OIDC identity and has no provider-neutral equivalent, so it stays in .github/workflows/release.yml and is absent from a local build. This manifest binds the same bytes without it; it does not replace it.",
+    "provider_neutral": false
+  },
+  "binary": {
+    "name": "vela",
+    "sha256": "sha256:a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948"
+  },
+  "build": {
+    "cargo_auditable_version": "0.7.5",
+    "command": "cargo auditable build --locked --release -p vela-cli --bin vela --target aarch64-apple-darwin",
+    "entry_point": "scripts/release.sh",
+    "provider": "github-actions",
+    "reproducibility": {
+      "archive_builds_compared": 2,
+      "binary_builds_compared": 2,
+      "build_path": "/src/vela",
+      "source_date_epoch": 1787007813
+    },
+    "sbom": {
+      "format": "spdx-json",
+      "tool": "syft",
+      "tool_version": "1.50.0"
+    }
+  },
+  "generated_at": "2026-08-17T23:03:33Z",
+  "release": {
+    "tag": "v0.977.1",
+    "version": "0.977.1"
+  },
+  "schema": "vela.release-bundle-manifest.v1",
+  "signature": {
+    "namespace": "vela-release",
+    "note": "Signed out of band as a detached OpenSSH signature over these exact bytes, namespace vela-release. The signing identity is a distribution identity. It is never the repository-authority key: publishing software is not a scientific Decision (docs/SIGNING.md).",
+    "sidecar": "vela-macos-aarch64.zip.release-manifest.json.sig"
+  },
+  "source": {
+    "available": true,
+    "commit": "0e057c0debcff775a3deb56150ceaccfd4707b41",
+    "dirty": false,
+    "remote": "https://github.com/vela-science/vela",
+    "tree": "55768612b82b93a4a01bb5aeddeb937dff678e4a"
+  },
+  "target": {
+    "architecture": "aarch64",
+    "platform": "macos",
+    "triple": "aarch64-apple-darwin"
+  },
+  "toolchain": {
+    "channel": "1.97.1",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  }
+}

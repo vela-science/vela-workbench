@@ -8,7 +8,7 @@ export type BootstrapDto = { preferences: PreferencesDto, runtime: RuntimePolicy
 
 export type RepositoryClassificationDto = "vela_repository" | "native_integration" | "git_only";
 
-export type VelaBinaryStateDto = "signed_runtime_baseline" | "version_match_hash_unrecognized" | "unsupported";
+export type VelaBinaryStateDto = "signed_runtime_baseline" | "unsupported";
 
 export type VelaBinaryDto = { path: string, version: string, sha256: string, state: VelaBinaryStateDto, };
 
