@@ -1,0 +1,63 @@
+{
+  "schema": "vela.cli.integration-inspection.v1",
+  "ok": true,
+  "command": "integration inspect",
+  "authority_effect": "none",
+  "repository": "https://github.com/williamjblair/lean-proofs.git",
+  "revision": "a8c2872a27cf8d11cf6744ca4a2c5b49ace5fea0",
+  "manifest_root": "sha256:b56bc2cd1107c0e85f414a8c15d4a1dd561c36b61e6d5dad98ff6c274281a434",
+  "profiles": [
+    {
+      "kind": "Profile",
+      "id": "https://github.com/williamjblair/lean-proofs/profiles/lean-project/v0.1",
+      "path": ".vela/profiles/lean-project-v0.1.toml",
+      "root": "sha256:3c9f08205adf4059b7ea06ce547b78989075d0582d542270de86bd68248539ac"
+    },
+    {
+      "kind": "Profile",
+      "id": "https://github.com/williamjblair/lean-proofs/profiles/formal-proof/v0.1",
+      "path": ".vela/profiles/formal-proof-v0.1.toml",
+      "root": "sha256:8358edad46299b717673061f21a607be30ecb8f2224a438163489870edd5d2d0"
+    }
+  ],
+  "bindings": [
+    {
+      "kind": "Binding",
+      "id": "lean-project",
+      "path": ".vela/bindings/lean-project.toml",
+      "root": "sha256:f34d4ab06923c942ba396c866ac5347231cdb90a7b5d623bbf1ed6e3042b4c8a"
+    },
+    {
+      "kind": "Binding",
+      "id": "formal-proof-index",
+      "path": ".vela/bindings/formal-proof.toml",
+      "root": "sha256:2a896bdc0a1ff5ac188c8a9bf5a2c5dad3a042af851d7ecefefc4f95221c19ef"
+    }
+  ],
+  "methods": [
+    {
+      "kind": "Method",
+      "id": "lean-build",
+      "path": ".vela/methods/lean-build.toml",
+      "root": "sha256:d758f77d782611e23e633f1bb4640004d39f5ce61df50f6890a17f030fba09f9"
+    },
+    {
+      "kind": "Method",
+      "id": "axiom-audit",
+      "path": ".vela/methods/axiom-audit.toml",
+      "root": "sha256:1ee9b6d7d629e673639992a66b944a2a789664b999086d9fe1f7343c6296649c"
+    },
+    {
+      "kind": "Method",
+      "id": "integration-validator",
+      "path": ".vela/methods/integration-validator.toml",
+      "root": "sha256:fc96ed80cbdfc29461c3551896b3f46c00249add3dd0e62b2b40a5343586d893"
+    }
+  ],
+  "does_not_establish": [
+    "native Method execution",
+    "scientific acceptance",
+    "a Vela Decision or Event",
+    "Standing"
+  ]
+}

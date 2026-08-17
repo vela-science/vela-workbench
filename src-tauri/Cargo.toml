@@ -1,0 +1,36 @@
+[package]
+name = "vela-workbench"
+version = "0.1.0"
+default-run = "vela-workbench"
+description = "A thin, local-first scientific workbench for exact Git and Vela state."
+authors = ["Vela Science"]
+edition = "2024"
+rust-version = "1.97.1"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "vela_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+directories = "=6.0.0"
+libc = "=0.2.189"
+rfd = "=0.17.2"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.11.0"
+tauri = { version = "=2.11.5", features = [] }
+thiserror = "=2.0.20"
+ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
+url = "=2.5.8"
+wait-timeout = "=0.2.1"
+
+[dev-dependencies]
+tempfile = "=3.27.0"

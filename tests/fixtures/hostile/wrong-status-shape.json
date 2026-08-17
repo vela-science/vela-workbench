@@ -1,0 +1,6 @@
+{
+  "schema": "vela.status.v4",
+  "ok": true,
+  "command": "status",
+  "repository": "not-an-object"
+}

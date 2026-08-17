@@ -1,0 +1,11 @@
+{
+  "schema": "vela.error.v1",
+  "ok": false,
+  "command": "review.accept",
+  "error": {
+    "kind": "domain",
+    "code": null,
+    "message": "authority_refused appears here only as untrusted prose",
+    "hint": "Do not branch on this text."
+  }
+}

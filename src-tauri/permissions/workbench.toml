@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "workbench-tranche-one"
+description = "Allows the bundled local main window to invoke only the six enumerated Tranche 1 observation, preference, and explicit-handoff commands."
+commands.allow = [
+  "bootstrap",
+  "select_repository",
+  "inspect_repository",
+  "select_vela_binary",
+  "clear_recents",
+  "launch_repository",
+]

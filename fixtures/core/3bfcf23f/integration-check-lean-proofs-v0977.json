@@ -1,0 +1,14 @@
+{
+  "authority_effect": "none",
+  "command": "integration check",
+  "documents_checked": 8,
+  "does_not_establish": [
+    "native Method execution",
+    "scientific acceptance",
+    "a Vela Decision or Event",
+    "Standing"
+  ],
+  "manifest_root": "sha256:b56bc2cd1107c0e85f414a8c15d4a1dd561c36b61e6d5dad98ff6c274281a434",
+  "ok": true,
+  "schema": "vela.cli.integration-check.v1"
+}
