@@ -41,8 +41,8 @@ Calm, exact, and operational. Labels name the owning system and the observation 
 
 - Repository switcher: user-selected Git roots, clearable recents, local classification, branch and dirty state.
 - Orient: exact Git/Vela facts, accepted/current Claim rows, integration non-authority labels, reviewed Problem handoff only.
-- Execute / Source: worktrees, remotes, Entire checkpoint references, explicit local or HTTPS handoffs, detached worktree preview/create, and four app-reviewed command profiles. There is no arbitrary argv surface.
-- Capture: explicit local files or one completed command stream, with exact bytes, digest, size, kind, source revision, exclusions, redaction confirmation, and one-shot local export.
+- Execute / Source: worktrees, remotes, Entire checkpoint references, explicit local or HTTPS handoffs, detached worktree preview/create, and four app-reviewed command profiles. Execution is explicit and warns that repository-controlled build scripts/plugins run with the current user's privileges. The bounds are not a sandbox. There is no arbitrary argv surface.
+- Capture: explicit local files or one completed command stream, with exact bytes, digest, size, kind, source revision, exclusions, redaction confirmation, and one-shot local export. Redacted output is always a new derived file; selected source evidence is immutable to Workbench.
 - Review draft: preview one ordinary Submission v3 author/import operation through the pinned signed Vela CLI. Producer attribution is displayed separately from Repository authority. Verification and Decision are absent.
 
 The renderer journey is Orient → Execute → Capture → Review draft. Every privilege-changing step has a preview and a fresh Rust-side revalidation; native confirmation is required immediately before a worktree, export, or Submission mutation.
