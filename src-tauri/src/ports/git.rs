@@ -115,6 +115,49 @@ fn empty_destination(path: &Path) -> Result<PathBuf, PortError> {
     Ok(canonical)
 }
 
+fn refuse_checkout_filters(root: &Path, target_commit: &str) -> Result<(), PortError> {
+    let names = run_git_os(
+        root,
+        vec![
+            OsString::from("ls-tree"),
+            OsString::from("-r"),
+            OsString::from("-z"),
+            OsString::from("--name-only"),
+            OsString::from(target_commit),
+        ],
+        Duration::from_secs(15),
+    )?;
+    let paths: Vec<&str> = names
+        .split('\0')
+        .filter(|value| !value.is_empty())
+        .collect();
+    let argv_bytes = paths.iter().map(|value| value.len() + 1).sum::<usize>();
+    if paths.len() > 100_000 || argv_bytes > 512 * 1024 {
+        return Err(PortError::Unsupported(
+            "target tree is too large for bounded checkout-filter validation".into(),
+        ));
+    }
+    let mut args = vec![
+        OsString::from("check-attr"),
+        OsString::from("-z"),
+        OsString::from(format!("--source={target_commit}")),
+        OsString::from("--all"),
+        OsString::from("--"),
+    ];
+    args.extend(paths.iter().map(OsString::from));
+    let attributes = run_git_os(root, args, Duration::from_secs(15))?;
+    let fields: Vec<&str> = attributes.split('\0').collect();
+    for row in fields.chunks(3) {
+        if row.len() == 3 && !row[0].is_empty() && row[1] == "filter" {
+            return Err(PortError::Unsupported(format!(
+                "target tree assigns checkout filter attribute {:?}; Workbench will not execute repository-configured smudge/process filters",
+                row[2]
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn preview_worktree(
     root: &Path,
     target_ref: &str,
@@ -123,14 +166,13 @@ pub(crate) fn preview_worktree(
     let snapshot = inspect(root)?;
     let target_ref = validated_ref(target_ref)?;
     let destination = empty_destination(destination)?;
-    if destination == Path::new(&snapshot.root)
-        || snapshot
-            .worktrees
-            .iter()
-            .any(|worktree| destination == Path::new(&worktree.path))
+    if snapshot
+        .worktrees
+        .iter()
+        .any(|worktree| destination.starts_with(Path::new(&worktree.path)))
     {
         return Err(PortError::InvalidInput(
-            "destination is already a Git worktree".into(),
+            "worktree destination must be outside every existing worktree checkout".into(),
         ));
     }
     let revision = format!("{target_ref}^{{commit}}");
@@ -150,6 +192,7 @@ pub(crate) fn preview_worktree(
             "Git ref did not resolve to one full commit id".into(),
         ));
     }
+    refuse_checkout_filters(Path::new(&snapshot.root), &target_commit)?;
     Ok(WorktreePreviewDto {
         repository_path: snapshot.root.clone(),
         source_head: snapshot.head_commit,
@@ -159,6 +202,13 @@ pub(crate) fn preview_worktree(
         destination: destination.display().to_string(),
         command: vec![
             GIT_PROGRAM.into(),
+            "--no-optional-locks".into(),
+            "-c".into(),
+            "core.fsmonitor=false".into(),
+            "-c".into(),
+            "core.hooksPath=/dev/null".into(),
+            "-C".into(),
+            snapshot.root.clone(),
             "worktree".into(),
             "add".into(),
             "--detach".into(),
@@ -167,6 +217,13 @@ pub(crate) fn preview_worktree(
         ],
         rollback: vec![
             GIT_PROGRAM.into(),
+            "--no-optional-locks".into(),
+            "-c".into(),
+            "core.fsmonitor=false".into(),
+            "-c".into(),
+            "core.hooksPath=/dev/null".into(),
+            "-C".into(),
+            snapshot.root.clone(),
             "worktree".into(),
             "remove".into(),
             destination.display().to_string(),
@@ -580,6 +637,14 @@ mod tests {
         let source_bytes = fs::read(root.join("result.txt")).expect("source bytes");
         let preview = preview_worktree(&root, "HEAD", &destination).expect("preview");
         assert_eq!(preview.target_commit, before.head_commit);
+        assert_eq!(preview.command[0], GIT_PROGRAM);
+        assert_eq!(preview.command[1], "--no-optional-locks");
+        assert!(
+            preview
+                .command
+                .windows(2)
+                .any(|pair| pair == ["-C", before.root.as_str()])
+        );
         let created = create_worktree(&preview).expect("create");
         let created_snapshot = inspect(&created).expect("created inspect");
         let after = inspect(&root).expect("after");
@@ -591,6 +656,61 @@ mod tests {
             source_bytes
         );
         assert!(preview_worktree(&root, "--help", temp.path()).is_err());
+        let nested = root.join("nested-worktree");
+        fs::create_dir(&nested).expect("nested destination");
+        let error = preview_worktree(&root, "HEAD", &nested)
+            .expect_err("nested worktree must not dirty the selected checkout");
+        assert!(
+            error
+                .to_string()
+                .contains("outside every existing worktree")
+        );
+
+        let filtered_destination = temp.path().join("filtered-worktree");
+        fs::create_dir(&filtered_destination).expect("filtered destination");
+        let marker = temp.path().join("smudge-executed");
+        fs::write(root.join(".gitattributes"), "*.txt filter=unspecified\n").expect("attributes");
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args(["add", ".gitattributes"])
+                .current_dir(&root)
+                .status()
+                .expect("add attributes")
+                .success()
+        );
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args([
+                    "-c",
+                    "user.name=Vela Test",
+                    "-c",
+                    "user.email=test@invalid.example",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "hostile filter",
+                ])
+                .current_dir(&root)
+                .status()
+                .expect("commit attributes")
+                .success()
+        );
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args([
+                    "config",
+                    "filter.unspecified.smudge",
+                    &format!("/bin/sh -c 'touch {}; cat'", marker.display()),
+                ])
+                .current_dir(&root)
+                .status()
+                .expect("configure hostile filter")
+                .success()
+        );
+        let error = preview_worktree(&root, "HEAD", &filtered_destination)
+            .expect_err("repository checkout filter must be refused before Git mutation");
+        assert!(error.to_string().contains("checkout filter attribute"));
+        assert!(!marker.exists());
     }
 
     #[test]

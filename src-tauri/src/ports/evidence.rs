@@ -281,6 +281,15 @@ pub(crate) fn export(
     let bytes = STANDARD
         .decode(&expected.output_base64)
         .map_err(|_| PortError::Parse("export preview bytes are invalid".into()))?;
+    if let EvidenceSourceDto::LocalFile { path, .. } = &captured.dto.source {
+        let source = read_regular_bounded(Path::new(path))?;
+        if digest(&source) != captured.dto.sha256 || source.len() as u64 != captured.dto.size {
+            return Err(PortError::Unsupported(
+                "selected source evidence changed immediately before export; no destination was created"
+                    .into(),
+            ));
+        }
+    }
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -412,7 +421,7 @@ mod tests {
         .expect("preview");
         fs::write(&source, "concurrently changed\n").expect("race source");
         let error = export(&captured, &preview).expect_err("stale source refuses");
-        assert!(error.to_string().contains("destination was removed"));
+        assert!(error.to_string().contains("no destination was created"));
         assert!(!destination.exists());
         assert_eq!(
             fs::read_to_string(&source).expect("source"),

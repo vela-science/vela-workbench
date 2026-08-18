@@ -118,10 +118,11 @@ flowchart LR
 5. Goal: exfiltrate a token to the renderer/browser. Remote embeds userinfo/query/fragment → Git DTO redacts it → handoff accepts only sanitized HTTPS.
 6. Goal: reach ambient credentials. Subprocess requests inherit the desktop environment → host clears it and restores only a minimal allowlist/PATH → signer and credential variables are absent.
 7. Goal: mutate sovereign source during inspection. Git/Vela read set runs → byte-preservation gate compares full before/after manifest → any mutation fails the gate.
-8. Goal: smuggle arbitrary argv. Repository labels/profile data contain flags → Rust maps only a closed profile enum to fixed OS argv → unexpected values fail before spawn.
-9. Goal: substitute a tool or evidence after preview. Attacker replaces the path → Rust rehashes before action and compares the exact preview digest/source revision → action is refused as stale.
-10. Goal: export private or altered bytes silently. Renderer requests an arbitrary destination/source → Rust accepts only a native-selected destination and captured source, shows digest/size/redaction state in native confirmation, refuses overwrite, and verifies post-write bytes.
-11. Goal: turn producer action into acceptance. Draft/import invokes Vela → Rust accepts only `submit`, validates `accepted_event_delta = 0` and `accepted_state_changed = false`, and exposes no Verification or Decision command.
+8. Goal: execute code during worktree checkout. The target tree assigns a Git filter backed by repository config → Rust checks effective target attributes and refuses every assigned `filter` before `worktree add` → smudge/process code never starts.
+9. Goal: smuggle arbitrary argv. Repository labels/profile data contain flags → Rust maps only a closed profile enum to fixed OS argv → unexpected values fail before spawn.
+10. Goal: substitute a tool or evidence after preview. Attacker replaces the path → Rust rehashes before action and compares the exact preview digest/source revision → action is refused as stale.
+11. Goal: export private or altered bytes silently. Renderer requests an arbitrary destination/source → Rust accepts only a native-selected destination and captured source, shows digest/size/redaction state in native confirmation, refuses overwrite, and verifies post-write bytes.
+12. Goal: turn producer action into acceptance. Draft/import invokes Vela → Rust accepts only `submit`, validates `accepted_event_delta = 0` and `accepted_state_changed = false`, and exposes no Verification or Decision command.
 
 ## Threat model table
 

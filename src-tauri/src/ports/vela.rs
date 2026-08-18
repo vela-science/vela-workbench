@@ -592,6 +592,8 @@ fn validate_relative_artifact(path: &str) -> Result<(), PortError> {
     let path = Path::new(path);
     if path.is_absolute()
         || path.as_os_str().is_empty()
+        || path.as_os_str().len() > 4096
+        || path.to_string_lossy().contains(':')
         || !path
             .components()
             .all(|component| matches!(component, std::path::Component::Normal(_)))
@@ -635,6 +637,15 @@ fn read_submission_artifact(
 
 fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, PortError> {
     bounded_text(&draft.assertion, "Claim assertion")?;
+    if draft.conditions.len() > 32
+        || draft.verification_requirements.len() > 32
+        || draft.producer_check_run_ids.len() > 16
+    {
+        return Err(PortError::InvalidInput(
+            "Submission draft exceeds bounded condition, verification-requirement, or producer-check counts"
+                .into(),
+        ));
+    }
     if !matches!(
         draft.claim_type.as_str(),
         "computational" | "theoretical" | "empirical" | "negative" | "contradiction"
@@ -667,7 +678,10 @@ fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, 
     }
     if !draft.producer.starts_with("agent:")
         || draft.producer.len() > 16_384
-        || draft.producer.chars().any(char::is_whitespace)
+        || draft
+            .producer
+            .chars()
+            .any(|value| value.is_whitespace() || value.is_control())
     {
         return Err(PortError::InvalidInput(
             "direct authoring producer must be one explicit agent:<id> identity".into(),
@@ -679,6 +693,17 @@ fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, 
     let mut total = 0_u64;
     for artifact in &draft.artifacts {
         bounded_text(&artifact.kind, "Artifact kind")?;
+        if artifact.kind.len() > 128
+            || !artifact
+                .kind
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        {
+            return Err(PortError::InvalidInput(
+                "Artifact kind must use at most 128 ASCII letters, digits, dot, underscore, or dash"
+                    .into(),
+            ));
+        }
         let (size, _) = read_submission_artifact(repository, &artifact.path, &artifact.sha256)?;
         if size != artifact.size {
             return Err(PortError::Unsupported(format!(
@@ -981,6 +1006,8 @@ pub(crate) fn preview_submission_import(
             payload.replayability.as_str(),
             "exact" | "bounded" | "approximate" | "unavailable" | "unknown"
         )
+        || payload.artifacts.is_empty()
+        || payload.artifacts.len() > 32
         || payload.claim.conditions.len() > 32
         || payload.caveats.is_empty()
         || payload.producer_checks.len() > 32
@@ -991,11 +1018,38 @@ pub(crate) fn preview_submission_import(
             "Submission payload preview invariants are invalid".into(),
         ));
     }
+    bounded_text(&payload.identity.actor_id, "signed producer identity")?;
+    if payload.identity.actor_id.chars().any(char::is_whitespace) {
+        return Err(PortError::Parse(
+            "signed producer identity contains whitespace or control characters".into(),
+        ));
+    }
+    bounded_text(&payload.claim.assertion, "signed Claim assertion")?;
+    for value in payload
+        .claim
+        .conditions
+        .iter()
+        .chain(&payload.caveats)
+        .chain(&payload.verification_requirements)
+    {
+        bounded_text(value, "signed Submission text field")?;
+    }
     if let Some(source_run) = &payload.provenance.source_run {
         bounded_text(source_run, "source run")?;
     }
     let mut artifacts = Vec::new();
     for artifact in payload.artifacts {
+        bounded_text(&artifact.kind, "signed Artifact kind")?;
+        if artifact.kind.len() > 128
+            || !artifact
+                .kind
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        {
+            return Err(PortError::Parse(
+                "signed Artifact kind is outside the bounded token grammar".into(),
+            ));
+        }
         validate_relative_artifact(&artifact.path)?;
         validate_digest(&artifact.digest, "Artifact digest")?;
         let repository_source = repository.join(&artifact.path);

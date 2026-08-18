@@ -64,6 +64,18 @@ impl PrivilegedState {
             }
         }
     }
+
+    fn take_run(&mut self, run_id: &str) -> bool {
+        if !self
+            .active_run
+            .as_ref()
+            .is_some_and(|(active_id, _)| active_id == run_id)
+        {
+            return false;
+        }
+        self.active_run = None;
+        true
+    }
 }
 
 impl AppState {
@@ -119,6 +131,11 @@ fn confirmed(title: &str, description: &str) -> bool {
             .show(),
         MessageDialogResult::Ok | MessageDialogResult::Yes
     )
+}
+
+fn dialog_value(value: &str) -> Result<String, CommandErrorDto> {
+    serde_json::to_string(value)
+        .map_err(|error| CommandErrorDto::new("internal", format!("encode dialog value: {error}")))
 }
 
 fn selected_repository(
@@ -385,12 +402,18 @@ pub(crate) async fn create_worktree(
     state: State<'_, AppState>,
 ) -> Result<Option<WorktreeResultDto>, CommandErrorDto> {
     let (_, binary_path) = selected_repository(&preview.repository_path, &state)?;
+    let target_ref = dialog_value(&preview.target_ref)?;
+    let target_commit = dialog_value(&preview.target_commit)?;
+    let destination = dialog_value(&preview.destination)?;
+    let rollback = preview
+        .rollback
+        .iter()
+        .map(|value| dialog_value(value))
+        .collect::<Result<Vec<_>, _>>()?
+        .join(" ");
     let description = format!(
         "Create one detached worktree?\n\nTarget ref: {}\nResolved commit: {}\nDestination: {}\n\nRollback: {}",
-        preview.target_ref,
-        preview.target_commit,
-        preview.destination,
-        preview.rollback.join(" ")
+        target_ref, target_commit, destination, rollback
     );
     let approved = tauri::async_runtime::spawn_blocking(move || {
         confirmed("Create detached worktree", &description)
@@ -538,12 +561,14 @@ pub(crate) async fn run_native_exec(
     })
     .await;
     let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
-    privileged.active_run = None;
+    let may_store = privileged.take_run(&run_id);
     let result = task_result.map_err(|error| {
         CommandErrorDto::new("internal", format!("native execution task failed: {error}"))
     })?;
     let result = result.map_err(CommandErrorDto::from)?;
-    privileged.remember_run(result.clone());
+    if may_store {
+        privileged.remember_run(result.clone());
+    }
     Ok(result)
 }
 
@@ -694,7 +719,8 @@ pub(crate) async fn export_evidence(
     state: State<'_, AppState>,
 ) -> Result<Option<EvidenceExportResultDto>, CommandErrorDto> {
     let (canonical, _) = selected_repository(&repository_path, &state)?;
-    let captured = resolve_evidence(&canonical, &preview.request.source, &state)?;
+    let destination = dialog_value(&preview.destination)?;
+    let output_sha256 = dialog_value(&preview.output_sha256)?;
     let description = format!(
         "Create one {} evidence file?\n\nDestination: {}\nDigest: {}\nSize: {} bytes\nRedaction confirmed: {}\n\nThe selected source evidence will not be modified.",
         if preview.derived {
@@ -702,8 +728,8 @@ pub(crate) async fn export_evidence(
         } else {
             "exact-copy"
         },
-        preview.destination,
-        preview.output_sha256,
+        destination,
+        output_sha256,
         preview.output_size,
         preview.redaction_confirmed
     );
@@ -715,6 +741,7 @@ pub(crate) async fn export_evidence(
     if !approved {
         return Ok(None);
     }
+    let captured = resolve_evidence(&canonical, &preview.request.source, &state)?;
     tauri::async_runtime::spawn_blocking(move || ports::evidence::export(&captured, &preview))
         .await
         .map_err(|error| {
@@ -752,6 +779,23 @@ fn resolved_producer_checks(
             ))
         })
         .collect()
+}
+
+fn preflight_submission_draft(draft: &SubmissionDraftDto) -> Result<(), CommandErrorDto> {
+    if draft.artifacts.is_empty()
+        || draft.artifacts.len() > 32
+        || draft.caveats.is_empty()
+        || draft.caveats.len() > 32
+        || draft.conditions.len() > 32
+        || draft.verification_requirements.len() > 32
+        || draft.producer_check_run_ids.len() > 16
+    {
+        return Err(CommandErrorDto::new(
+            "invalid_input",
+            "Submission draft exceeds the closed bounded item counts",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_submission_artifacts_selected(
@@ -809,6 +853,7 @@ pub(crate) async fn preview_submission_draft(
     draft: SubmissionDraftDto,
     state: State<'_, AppState>,
 ) -> Result<SubmissionPreviewDto, CommandErrorDto> {
+    preflight_submission_draft(&draft)?;
     let (canonical, binary) = selected_repository(&path, &state)?;
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
@@ -834,6 +879,7 @@ pub(crate) async fn submit_submission_draft(
     preview: SubmissionPreviewDto,
     state: State<'_, AppState>,
 ) -> Result<Option<SubmissionResultDto>, CommandErrorDto> {
+    preflight_submission_draft(&preview.draft)?;
     let (canonical, binary) = selected_repository(&preview.repository_path, &state)?;
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new("vela_unavailable", "Vela runtime selection is unavailable")
@@ -854,11 +900,14 @@ pub(crate) async fn submit_submission_draft(
             "Submission draft, source, Artifact, producer check, or Vela identity changed; review again",
         ));
     }
+    let producer = dialog_value(&preview.draft.producer)?;
+    let repository = dialog_value(&preview.repository_path)?;
+    let source_commit = dialog_value(&preview.source_commit)?;
     let description = format!(
         "Submit one producer-authenticated pending Proposal?\n\nProducer: {}\nRepository: {}\nSource commit: {}\nArtifacts: {} ({} bytes)\n\nAccepted-event delta must remain zero. No Verification or Decision is available.",
-        preview.draft.producer,
-        preview.repository_path,
-        preview.source_commit,
+        producer,
+        repository,
+        source_commit,
         preview.draft.artifacts.len(),
         preview.artifact_total_bytes
     );
@@ -869,6 +918,22 @@ pub(crate) async fn submit_submission_draft(
     .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
     if !approved {
         return Ok(None);
+    }
+    let git = ports::git::inspect(&canonical)?;
+    validate_submission_artifacts_selected(&canonical, &preview.draft, &state)?;
+    let checks = resolved_producer_checks(&preview.draft, &git, &state)?;
+    let confirmed_preview = ports::vela::preview_submission_draft(
+        &canonical,
+        &binary,
+        &git,
+        preview.draft.clone(),
+        checks,
+    )?;
+    if confirmed_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Submission inputs changed during confirmation; review the exact operation again",
+        ));
     }
     tauri::async_runtime::spawn_blocking(move || ports::vela::submit_draft(&binary, &preview))
         .await
@@ -940,12 +1005,17 @@ pub(crate) async fn import_submission(
             "signed Submission envelope, Artifact, source, or Vela identity changed; review again",
         ));
     }
+    let assertion_summary = preview.assertion.chars().take(256).collect::<String>();
+    let assertion_summary = dialog_value(&assertion_summary)?;
+    let producer_summary = dialog_value(&preview.producer)?;
+    let envelope_path = dialog_value(&preview.envelope_path)?;
+    let envelope_sha256 = dialog_value(&preview.envelope_sha256)?;
     let description = format!(
         "Import one signed Submission v3?\n\nProducer: {}\nAssertion: {}\nEnvelope: {}\nDigest: {}\nArtifacts: {}\n\nThe signed Vela CLI will verify the signature. Accepted-event delta must remain zero.",
-        preview.producer,
-        preview.assertion,
-        preview.envelope_path,
-        preview.envelope_sha256,
+        producer_summary,
+        assertion_summary,
+        envelope_path,
+        envelope_sha256,
         preview.artifacts.len()
     );
     let approved = tauri::async_runtime::spawn_blocking(move || {
@@ -955,6 +1025,19 @@ pub(crate) async fn import_submission(
     .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
     if !approved {
         return Ok(None);
+    }
+    let git = ports::git::inspect(&canonical)?;
+    let confirmed_preview = ports::vela::preview_submission_import(
+        &canonical,
+        &binary,
+        &git,
+        Path::new(&preview.envelope_path),
+    )?;
+    if confirmed_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "signed Submission inputs changed during confirmation; review the exact import again",
+        ));
     }
     tauri::async_runtime::spawn_blocking(move || ports::vela::import_submission(&binary, &preview))
         .await
@@ -967,11 +1050,23 @@ pub(crate) async fn import_submission(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs, path::Path};
+    use std::{
+        collections::BTreeMap,
+        fs,
+        path::Path,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+    };
 
     use sha2::{Digest, Sha256};
 
-    use super::inspect_path;
+    use super::{PrivilegedState, dialog_value, inspect_path, preflight_submission_draft};
+    use crate::contracts::{
+        NativeExecProfileDto, NativeExecResultDto, NativeExecStateDto, NativeOutputDto,
+        SubmissionDraftDto,
+    };
 
     fn file_manifest(path: &Path, root: &Path, out: &mut BTreeMap<String, String>) {
         let mut entries: Vec<_> = fs::read_dir(path)
@@ -1034,5 +1129,71 @@ mod tests {
                     .is_empty()
             );
         }
+    }
+
+    #[test]
+    fn clear_during_run_cannot_repopulate_completed_output() {
+        let mut state = PrivilegedState::default();
+        let cancellation = Arc::new(AtomicBool::new(false));
+        state.active_run = Some(("run-clear-race".into(), Arc::clone(&cancellation)));
+        state.clear();
+        assert!(cancellation.load(Ordering::SeqCst));
+        let output = NativeOutputDto {
+            stream: "stdout".into(),
+            sha256: format!("sha256:{}", "0".repeat(64)),
+            size: 0,
+            content_base64: String::new(),
+            content_utf8: Some(String::new()),
+            truncated: false,
+        };
+        let result = NativeExecResultDto {
+            run_id: "run-clear-race".into(),
+            profile: NativeExecProfileDto::GitDiffCheck,
+            state: NativeExecStateDto::Cancelled,
+            exit_code: None,
+            started_at_unix_ms: 1,
+            completed_at_unix_ms: 2,
+            source_commit: "1".repeat(40),
+            source_tree: "2".repeat(40),
+            executable_sha256: format!("sha256:{}", "3".repeat(64)),
+            stdout: output.clone(),
+            stderr: NativeOutputDto {
+                stream: "stderr".into(),
+                ..output
+            },
+            producer_check_method: "vela-workbench-git-diff-check".into(),
+            producer_check_outcome: "skipped".into(),
+        };
+        let may_store = state.take_run("run-clear-race");
+        if may_store {
+            state.remember_run(result);
+        }
+        assert!(!may_store);
+        assert!(state.completed_runs.is_empty());
+    }
+
+    #[test]
+    fn submission_preflight_is_bounded_before_filesystem_work() {
+        let draft = SubmissionDraftDto {
+            assertion: "bounded result".into(),
+            claim_type: "computational".into(),
+            conditions: vec!["condition".into(); 33],
+            replayability: "exact".into(),
+            artifacts: vec![],
+            caveats: vec!["bounded scope".into()],
+            producer_check_run_ids: vec![],
+            verification_requirements: vec![],
+            source_run: None,
+            producer: "agent:test".into(),
+        };
+        assert!(preflight_submission_draft(&draft).is_err());
+    }
+
+    #[test]
+    fn native_dialog_values_escape_untrusted_control_text() {
+        let encoded = dialog_value("claim\nDigest: fake\u{1b}").expect("JSON string");
+        assert!(!encoded.contains('\n'));
+        assert!(encoded.contains("\\n"));
+        assert!(encoded.contains("\\u001b"));
     }
 }
