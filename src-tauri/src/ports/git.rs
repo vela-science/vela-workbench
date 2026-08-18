@@ -91,6 +91,45 @@ fn validated_ref(value: &str) -> Result<&str, PortError> {
     Ok(value)
 }
 
+pub(crate) fn require_tracked_clean_at_head(root: &Path, relative: &str) -> Result<(), PortError> {
+    let path = Path::new(relative);
+    if relative.is_empty()
+        || relative.len() > 4096
+        || path.is_absolute()
+        || !path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(PortError::InvalidInput(
+            "retained evidence path must be one normalized repository-relative path".into(),
+        ));
+    }
+    run_git_os(
+        root,
+        vec![
+            OsString::from("ls-files"),
+            OsString::from("--error-unmatch"),
+            OsString::from("--"),
+            OsString::from(relative),
+        ],
+        Duration::from_secs(6),
+    )?;
+    run_git_os(
+        root,
+        vec![
+            OsString::from("diff"),
+            OsString::from("--quiet"),
+            OsString::from("--no-ext-diff"),
+            OsString::from("--no-textconv"),
+            OsString::from("HEAD"),
+            OsString::from("--"),
+            OsString::from(relative),
+        ],
+        Duration::from_secs(6),
+    )?;
+    Ok(())
+}
+
 fn empty_destination(path: &Path) -> Result<PathBuf, PortError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|error| {
         PortError::InvalidInput(format!("inspect worktree destination: {error}"))
@@ -490,7 +529,7 @@ mod tests {
 
     use super::{
         GIT_PROGRAM, create_worktree, inspect, parse_log, parse_remotes, parse_status,
-        parse_worktrees, preview_worktree,
+        parse_worktrees, preview_worktree, require_tracked_clean_at_head,
     };
 
     fn bytes_under(path: &Path, root: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
@@ -590,6 +629,52 @@ mod tests {
         let after = snapshot_bytes(root);
         assert_eq!(before, after);
         assert!(!snapshot.dirty);
+    }
+
+    #[test]
+    fn retained_verification_inputs_must_be_tracked_and_unchanged_at_head() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args(["init", "-q"])
+                .current_dir(root)
+                .status()
+                .expect("init")
+                .success()
+        );
+        fs::write(root.join("method.json"), "{}\n").expect("method");
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args(["add", "method.json"])
+                .current_dir(root)
+                .status()
+                .expect("add")
+                .success()
+        );
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args([
+                    "-c",
+                    "user.name=Vela Test",
+                    "-c",
+                    "user.email=test@invalid.example",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "fixture"
+                ])
+                .current_dir(root)
+                .status()
+                .expect("commit")
+                .success()
+        );
+        require_tracked_clean_at_head(root, "method.json").expect("tracked current method");
+        fs::write(root.join("method.json"), "{\"changed\":true}\n").expect("dirty method");
+        assert!(require_tracked_clean_at_head(root, "method.json").is_err());
+        fs::write(root.join("untracked.json"), "{}\n").expect("untracked");
+        assert!(require_tracked_clean_at_head(root, "untracked.json").is_err());
+        assert!(require_tracked_clean_at_head(root, "../escape").is_err());
     }
 
     #[test]

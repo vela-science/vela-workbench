@@ -13,13 +13,15 @@ use tauri::State;
 
 use crate::{
     contracts::{
-        BootstrapDto, CancelResultDto, CommandErrorDto, EvidenceExportPreviewDto,
-        EvidenceExportRequestDto, EvidenceExportResultDto, EvidenceItemDto, EvidenceSourceDto,
-        GitSnapshotDto, LaunchKindDto, LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto,
-        NativeExecResultDto, NativeToolDto, PreferencesDto, RepositorySnapshotDto,
-        RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto,
-        SubmissionResultDto, VelaBinaryDto, VelaInspectionDto, WorktreePreviewDto,
-        WorktreeResultDto,
+        BootstrapDto, CancelResultDto, CommandErrorDto, DecisionExecutionDto, DecisionInboxDto,
+        DecisionPreviewDto, DecisionRequestDto, EvidenceExportPreviewDto, EvidenceExportRequestDto,
+        EvidenceExportResultDto, EvidenceItemDto, EvidenceSourceDto, GitSnapshotDto, LaunchKindDto,
+        LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto, NativeExecResultDto,
+        NativeToolDto, PreferencesDto, RecoveryPreviewDto, RecoveryResultDto,
+        RepositorySnapshotDto, RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto,
+        SubmissionPreviewDto, SubmissionResultDto, VelaBinaryDto, VelaInspectionDto,
+        VerificationDraftDto, VerificationImportPreviewDto, VerificationMethodDto,
+        VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto, WorktreeResultDto,
     },
     ports::{self, PortError},
     preferences::PreferencesStore,
@@ -36,6 +38,7 @@ struct PrivilegedState {
     active_run: Option<(String, Arc<AtomicBool>)>,
     completed_runs: BTreeMap<String, NativeExecResultDto>,
     evidence: BTreeMap<String, ports::evidence::CapturedEvidence>,
+    recovery_operations: BTreeMap<String, String>,
 }
 
 impl PrivilegedState {
@@ -163,9 +166,11 @@ fn runtime_policy() -> RuntimePolicyDto {
         runtime_commit: ports::vela::RUNTIME_COMMIT.into(),
         runtime_sha256: ports::vela::PLATFORM_RUNTIME_SHA256.into(),
         read_only: false,
-        tranche: "2".into(),
-        mutation_scope: "detached_worktree_and_submission_intake_only".into(),
-        tranche_three_enabled: false,
+        tranche: "3".into(),
+        mutation_scope:
+            "bounded_local_execution_submission_verification_and_attributed_repository_decision"
+                .into(),
+        tranche_three_enabled: true,
     }
 }
 
@@ -1046,6 +1051,480 @@ pub(crate) async fn import_submission(
         })?
         .map(Some)
         .map_err(Into::into)
+}
+
+fn tranche_three_context(
+    path: &str,
+    state: &State<'_, AppState>,
+) -> Result<(PathBuf, PathBuf, GitSnapshotDto), CommandErrorDto> {
+    let (repository, binary) = selected_repository(path, state)?;
+    let binary = binary.ok_or_else(|| {
+        CommandErrorDto::new(
+            "vela_unavailable",
+            "select the exact signed Vela v0.977.1 runtime before using Tranche 3",
+        )
+    })?;
+    let git = ports::git::inspect(&repository)?;
+    Ok((repository, binary, git))
+}
+
+fn remember_recovery(
+    repository: &Path,
+    result: &VerificationResultDto,
+    state: &State<'_, AppState>,
+) -> Result<(), CommandErrorDto> {
+    if let Some(refusal) = &result.refusal
+        && refusal.code.as_deref() == Some("repository_incomplete")
+        && let Some(operation_id) = &refusal.operation_id
+    {
+        state
+            .privileged
+            .lock()
+            .map_err(|_| state_error())?
+            .recovery_operations
+            .insert(repository.display().to_string(), operation_id.clone());
+    }
+    Ok(())
+}
+
+fn remember_decision_recovery(
+    repository: &Path,
+    result: &DecisionExecutionDto,
+    state: &State<'_, AppState>,
+) -> Result<(), CommandErrorDto> {
+    if let Some(refusal) = &result.refusal
+        && refusal.code.as_deref() == Some("repository_incomplete")
+        && let Some(operation_id) = &refusal.operation_id
+    {
+        state
+            .privileged
+            .lock()
+            .map_err(|_| state_error())?
+            .recovery_operations
+            .insert(repository.display().to_string(), operation_id.clone());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn refresh_decision_inbox(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<DecisionInboxDto, CommandErrorDto> {
+    let (repository, binary, _) = tranche_three_context(&path, &state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::decision_inbox(&repository, &binary)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Decision Inbox task failed: {error}"))
+    })?
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn select_verification_method(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Option<VerificationMethodDto>, CommandErrorDto> {
+    let (repository, _, _) = tranche_three_context(&path, &state)?;
+    let selected = tauri::async_runtime::spawn_blocking(|| {
+        FileDialog::new()
+            .set_title("Choose one retained Verification Method JSON file")
+            .pick_file()
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("Method dialog failed: {error}")))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::inspect_verification_method(&repository, &selected)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("internal", format!("Method task failed: {error}")))?
+    .map(Some)
+    .map_err(Into::into)
+}
+
+fn validate_verification_outputs_selected(
+    repository: &Path,
+    draft: &VerificationDraftDto,
+    state: &State<'_, AppState>,
+) -> Result<(), CommandErrorDto> {
+    let privileged = state.privileged.lock().map_err(|_| state_error())?;
+    for relative in &draft.output_paths {
+        let canonical = std::fs::canonicalize(repository.join(relative)).map_err(|error| {
+            CommandErrorDto::new(
+                "invalid_input",
+                format!("resolve Verification output {relative}: {error}"),
+            )
+        })?;
+        if !privileged
+            .evidence
+            .contains_key(&format!("file:{}", canonical.display()))
+        {
+            return Err(CommandErrorDto::new(
+                "evidence_not_selected",
+                format!(
+                    "Verification output {relative} is not an explicit current evidence selection"
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn preview_verification_record(
+    path: String,
+    draft: VerificationDraftDto,
+    state: State<'_, AppState>,
+) -> Result<VerificationPreviewDto, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&path, &state)?;
+    validate_verification_outputs_selected(&repository, &draft, &state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::preview_verification_record(&repository, &binary, &git, draft)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new(
+            "internal",
+            format!("Verification preview task failed: {error}"),
+        )
+    })?
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn record_verification(
+    preview: VerificationPreviewDto,
+    state: State<'_, AppState>,
+) -> Result<Option<VerificationResultDto>, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&preview.repository_path, &state)?;
+    validate_verification_outputs_selected(&repository, &preview.draft, &state)?;
+    let rebuilt = ports::tranche_three::preview_verification_record(
+        &repository,
+        &binary,
+        &git,
+        preview.draft.clone(),
+    )?;
+    if rebuilt != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Verification inputs, evidence, Proposal, source, or Vela identity changed; review again",
+        ));
+    }
+    let actor = dialog_value(&preview.draft.actor)?;
+    let proposal = dialog_value(&preview.draft.proposal_id)?;
+    let method = dialog_value(&preview.draft.method.repository_relative_path)?;
+    let description = format!(
+        "Record one scoped Verification?\n\nAttesting actor: {actor}\nProposal: {proposal}\nMethod: {method}\nOutcome: {}\nDeclared independent of: {}\nShared dependencies: {}\n\nAuthority effect: none. This does not accept, reject, create an Event, or change Standing.",
+        preview.draft.outcome,
+        preview.draft.independent_of.len(),
+        preview.draft.shared_dependencies.len()
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Record scoped Verification", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let git = ports::git::inspect(&repository)?;
+    validate_verification_outputs_selected(&repository, &preview.draft, &state)?;
+    let final_preview = ports::tranche_three::preview_verification_record(
+        &repository,
+        &binary,
+        &git,
+        preview.draft.clone(),
+    )?;
+    if final_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Verification changed after confirmation; nothing was recorded",
+        ));
+    }
+    let result = tauri::async_runtime::spawn_blocking({
+        let repository = repository.clone();
+        let binary = binary.clone();
+        move || ports::tranche_three::record_verification(&repository, &binary, &preview)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Verification task failed: {error}"))
+    })??;
+    remember_recovery(&repository, &result, &state)?;
+    Ok(Some(result))
+}
+
+#[tauri::command]
+pub(crate) async fn select_verification_import(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Option<VerificationImportPreviewDto>, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&path, &state)?;
+    let selected = tauri::async_runtime::spawn_blocking(|| {
+        FileDialog::new()
+            .set_title("Choose one signed Verification Record v2 envelope")
+            .pick_file()
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new(
+            "dialog",
+            format!("Verification import dialog failed: {error}"),
+        )
+    })?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::preview_verification_import(&repository, &binary, &git, &selected)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new(
+            "internal",
+            format!("Verification import task failed: {error}"),
+        )
+    })?
+    .map(Some)
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn import_verification(
+    preview: VerificationImportPreviewDto,
+    state: State<'_, AppState>,
+) -> Result<Option<VerificationResultDto>, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&preview.repository_path, &state)?;
+    let rebuilt = ports::tranche_three::preview_verification_import(
+        &repository,
+        &binary,
+        &git,
+        Path::new(&preview.envelope_path),
+    )?;
+    if rebuilt != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Verification envelope, Proposal, source, or Vela identity changed; review again",
+        ));
+    }
+    let verifier = dialog_value(&preview.verifier)?;
+    let proposal = dialog_value(&preview.proposal_id)?;
+    let digest = dialog_value(&preview.envelope_sha256)?;
+    let description = format!(
+        "Import one signed scoped Verification?\n\nVerifier: {verifier}\nProposal: {proposal}\nEnvelope: {digest}\nOutcome: {}\n\nAuthority effect: none. The signed Vela CLI verifies the exact signature and current bindings.",
+        preview.outcome
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Import scoped Verification", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let git = ports::git::inspect(&repository)?;
+    let final_preview = ports::tranche_three::preview_verification_import(
+        &repository,
+        &binary,
+        &git,
+        Path::new(&preview.envelope_path),
+    )?;
+    if final_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Verification import changed after confirmation; nothing was imported",
+        ));
+    }
+    let result = tauri::async_runtime::spawn_blocking({
+        let repository = repository.clone();
+        let binary = binary.clone();
+        move || ports::tranche_three::import_verification(&repository, &binary, &preview)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Verification import failed: {error}"))
+    })??;
+    remember_recovery(&repository, &result, &state)?;
+    Ok(Some(result))
+}
+
+#[tauri::command]
+pub(crate) async fn preview_decision(
+    path: String,
+    request: DecisionRequestDto,
+    state: State<'_, AppState>,
+) -> Result<DecisionPreviewDto, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&path, &state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::preview_decision(&repository, &binary, &git, request)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Decision preview task failed: {error}"))
+    })?
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn execute_decision(
+    preview: DecisionPreviewDto,
+    state: State<'_, AppState>,
+) -> Result<Option<DecisionExecutionDto>, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&preview.repository_path, &state)?;
+    let rebuilt = ports::tranche_three::preview_decision(
+        &repository,
+        &binary,
+        &git,
+        preview.request.clone(),
+    )?;
+    if rebuilt != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Decision Inbox entry, Proposal, Verification set, source, or Vela identity changed; review again",
+        ));
+    }
+    let performer = dialog_value(&preview.request.performer)?;
+    let entry = dialog_value(&preview.entry.entry_root)?;
+    let proposal = dialog_value(&preview.entry.proposal_id)?;
+    let successor = dialog_value(&preview.expected_successor.repository_root)?;
+    let description = format!(
+        "Execute one attributed {:?} Decision?\n\nPerformer: {performer} ({})\nRepository authority principal: {}\nAuthentication: {}\nTransaction signer: {}\nProposal: {proposal}\nEntry root: {entry}\nExpected successor repository: {successor}\nVerification records: {}\n\nThis changes Repository scientific state if Vela authenticates, authorizes, and commits it. Do not retry after a post-commit receipt failure.",
+        preview.request.action,
+        preview.performer_kind,
+        preview.repository_authority_principal,
+        preview.authentication,
+        preview.transaction_signer,
+        preview.entry.verifications.len()
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Execute attributed Repository Decision", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let git = ports::git::inspect(&repository)?;
+    let final_preview = ports::tranche_three::preview_decision(
+        &repository,
+        &binary,
+        &git,
+        preview.request.clone(),
+    )?;
+    if final_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Decision changed after confirmation; no authority command was started",
+        ));
+    }
+    let result = tauri::async_runtime::spawn_blocking({
+        let repository = repository.clone();
+        let binary = binary.clone();
+        move || ports::tranche_three::execute_decision(&repository, &binary, &preview)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Decision task failed: {error}"))
+    })??;
+    remember_decision_recovery(&repository, &result, &state)?;
+    Ok(Some(result))
+}
+
+#[tauri::command]
+pub(crate) async fn preview_recovery(
+    path: String,
+    operation_id: String,
+    state: State<'_, AppState>,
+) -> Result<RecoveryPreviewDto, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&path, &state)?;
+    let remembered = state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .recovery_operations
+        .get(&repository.display().to_string())
+        .cloned();
+    if remembered.as_deref() != Some(operation_id.as_str()) {
+        return Err(CommandErrorDto::new(
+            "not_selected",
+            "recovery operation was not surfaced by a structured repository_incomplete refusal in this process",
+        ));
+    }
+    ports::tranche_three::preview_recovery(&repository, &binary, &git, &operation_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) async fn recover_transaction(
+    preview: RecoveryPreviewDto,
+    state: State<'_, AppState>,
+) -> Result<Option<RecoveryResultDto>, CommandErrorDto> {
+    let (repository, binary, git) = tranche_three_context(&preview.repository_path, &state)?;
+    let remembered = state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .recovery_operations
+        .get(&repository.display().to_string())
+        .cloned();
+    if remembered.as_deref() != Some(preview.operation_id.as_str()) {
+        return Err(CommandErrorDto::new(
+            "not_selected",
+            "recovery operation is not the exact surfaced operation",
+        ));
+    }
+    let rebuilt =
+        ports::tranche_three::preview_recovery(&repository, &binary, &git, &preview.operation_id)?;
+    if rebuilt != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "recovery source or Vela identity changed; review again",
+        ));
+    }
+    let operation = dialog_value(&preview.operation_id)?;
+    let description = format!(
+        "Recover one exact Vela transaction?\n\nOperation: {operation}\nRepository: {}\n\nThis never retries or chooses a Decision. Vela applies only the exact signed recovery journal.",
+        preview.repository_path
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Recover exact Vela transaction", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let git = ports::git::inspect(&repository)?;
+    let final_preview =
+        ports::tranche_three::preview_recovery(&repository, &binary, &git, &preview.operation_id)?;
+    if final_preview != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "recovery changed after confirmation; nothing was recovered",
+        ));
+    }
+    let repository_key = preview.repository_path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        ports::tranche_three::recover_transaction(&repository, &binary, &preview)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("recovery task failed: {error}"))
+    })??;
+    if result.refusal.is_none() && result.repository_blocked_after == Some(false) {
+        state
+            .privileged
+            .lock()
+            .map_err(|_| state_error())?
+            .recovery_operations
+            .remove(&repository_key);
+    }
+    Ok(Some(result))
 }
 
 #[cfg(test)]

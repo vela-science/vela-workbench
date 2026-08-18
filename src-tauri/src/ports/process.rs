@@ -51,6 +51,9 @@ pub(crate) struct ProcessSpec {
     pub max_stdout: usize,
     pub max_stderr: usize,
     pub path_prefix: Option<PathBuf>,
+    /// Forward only the standard SSH agent socket path to a command whose
+    /// closed contract explicitly requires Repository-authority signing.
+    pub include_ssh_auth_sock: bool,
 }
 
 impl ProcessSpec {
@@ -63,6 +66,7 @@ impl ProcessSpec {
             max_stdout: 2 * 1024 * 1024,
             max_stderr: 256 * 1024,
             path_prefix: None,
+            include_ssh_auth_sock: false,
         }
     }
 
@@ -89,7 +93,10 @@ pub(crate) struct ProcessOutput {
     pub stderr_truncated: bool,
 }
 
-fn environment_values(path_prefix: Option<&Path>) -> Vec<(OsString, OsString)> {
+fn environment_values(
+    path_prefix: Option<&Path>,
+    include_ssh_auth_sock: bool,
+) -> Vec<(OsString, OsString)> {
     let mut values = Vec::new();
     for key in ["HOME", "TMPDIR", "LANG", "LC_ALL"] {
         if let Some(value) = std::env::var_os(key) {
@@ -111,11 +118,14 @@ fn environment_values(path_prefix: Option<&Path>) -> Vec<(OsString, OsString)> {
     values.push((OsString::from("PATH"), path));
     values.push((OsString::from("GIT_OPTIONAL_LOCKS"), OsString::from("0")));
     values.push((OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")));
+    if include_ssh_auth_sock && let Some(value) = std::env::var_os("SSH_AUTH_SOCK") {
+        values.push((OsString::from("SSH_AUTH_SOCK"), value));
+    }
     values
 }
 
 pub(crate) fn environment_summary(path_prefix: Option<&Path>) -> Vec<(String, String)> {
-    environment_values(path_prefix)
+    environment_values(path_prefix, false)
         .into_iter()
         .map(|(name, value)| {
             (
@@ -126,9 +136,13 @@ pub(crate) fn environment_summary(path_prefix: Option<&Path>) -> Vec<(String, St
         .collect()
 }
 
-fn explicit_environment(command: &mut Command, path_prefix: Option<&Path>) {
+fn explicit_environment(
+    command: &mut Command,
+    path_prefix: Option<&Path>,
+    include_ssh_auth_sock: bool,
+) {
     command.env_clear();
-    for (name, value) in environment_values(path_prefix) {
+    for (name, value) in environment_values(path_prefix, include_ssh_auth_sock) {
         command.env(name, value);
     }
 }
@@ -190,7 +204,11 @@ pub(crate) fn run_bounded(spec: ProcessSpec) -> Result<ProcessOutput, PortError>
         // descendants that inherited the captured pipes.
         command.process_group(0);
     }
-    explicit_environment(&mut command, spec.path_prefix.as_deref());
+    explicit_environment(
+        &mut command,
+        spec.path_prefix.as_deref(),
+        spec.include_ssh_auth_sock,
+    );
 
     let mut child = command.spawn().map_err(|error| {
         PortError::Unavailable(format!("start {}: {error}", spec.program.display()))
@@ -311,7 +329,11 @@ pub(crate) fn run_cancellable(
         use std::os::unix::process::CommandExt;
         command.process_group(0);
     }
-    explicit_environment(&mut command, spec.path_prefix.as_deref());
+    explicit_environment(
+        &mut command,
+        spec.path_prefix.as_deref(),
+        spec.include_ssh_auth_sock,
+    );
     let mut child = command.spawn().map_err(|error| {
         PortError::Unavailable(format!("start {}: {error}", spec.program.display()))
     })?;

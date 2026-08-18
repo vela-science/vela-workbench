@@ -28,6 +28,16 @@ pub fn run() {
             commands::submit_submission_draft,
             commands::select_submission_import,
             commands::import_submission,
+            commands::refresh_decision_inbox,
+            commands::select_verification_method,
+            commands::preview_verification_record,
+            commands::record_verification,
+            commands::select_verification_import,
+            commands::import_verification,
+            commands::preview_decision,
+            commands::execute_decision,
+            commands::preview_recovery,
+            commands::recover_transaction,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

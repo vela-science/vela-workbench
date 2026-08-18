@@ -1,6 +1,6 @@
 [[permission]]
-identifier = "workbench-tranche-two"
-description = "Allows the bundled local main window to invoke only enumerated Tranche 2 observation, reviewed execution, explicit evidence, detached-worktree, Submission-intake, preference, and handoff commands."
+identifier = "workbench-tranche-three"
+description = "Allows the bundled local main window to invoke only enumerated observation, reviewed execution, explicit evidence, Submission, scoped Verification, attributed Repository Decision, exact recovery, preference, and handoff commands."
 commands.allow = [
   "bootstrap",
   "select_repository",
@@ -21,4 +21,14 @@ commands.allow = [
   "submit_submission_draft",
   "select_submission_import",
   "import_submission",
+  "refresh_decision_inbox",
+  "select_verification_method",
+  "preview_verification_record",
+  "record_verification",
+  "select_verification_import",
+  "import_verification",
+  "preview_decision",
+  "execute_decision",
+  "preview_recovery",
+  "recover_transaction",
 ]

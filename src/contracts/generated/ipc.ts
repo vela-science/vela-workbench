@@ -82,4 +82,40 @@ export type SubmissionImportPreviewDto = { envelope_path: string, envelope_sha25
 
 export type SubmissionResultDto = { operation_id: string, submission_id: string, submission_root: string, proposal_id: string, proposal_root: string, claim_id: string, route: string, accepted_event_delta: number, accepted_state_changed: boolean, publication_state: string, publication_commit: string | null, };
 
+export type VerificationMethodDto = { path: string, repository_relative_path: string, sha256: string, size: number, profile: string, property: string, reviewer_kind: string | null, reviewer_display_name: string | null, reviewer_identifier: string | null, provider: string | null, version: string | null, attested_by_actor_id: string | null, procedure: Array<string>, required_output: Array<string>, does_not_establish: Array<string>, };
+
+export type VerificationDraftDto = { proposal_id: string, profile: string, method: VerificationMethodDto, property: string | null, complementary: boolean, outcome: string, does_not_establish: Array<string>, independent_of: Array<string>, shared_dependencies: Array<string>, output_paths: Array<string>, actor: string, };
+
+export type VerificationFacetDto = { verification_record_id: string, verification_record_root: string, verifier: string, performer_kind: string | null, performer_identifier: string | null, provider: string | null, version: string | null, method_profile: string, method_path: string, environment_root: string, property: string, outcome: string, declared_independent_of: Array<string>, shared_dependencies: Array<string>, evidence_artifact_ids: Array<string>, output_artifact_ids: Array<string>, does_not_establish: Array<string>, protocol_evidence_role: string | null, satisfies_requirements: Array<string>, };
+
+export type StandingStateDto = { repository_root: string, accepted_claim_ids: Array<string>, };
+
+export type StandingDeltaDto = { transition: string, affected_claim_ids: Array<string>, before: StandingStateDto, if_accept: StandingStateDto, if_reject: StandingStateDto, global_accepted_before: number, global_accepted_if_accept: number, global_accepted_if_reject: number, };
+
+export type DecisionEntryDto = { proposal_id: string, proposal_root: string, submission_root: string, claim_id: string, claim_root: string, repository_root: string, verification_set_root: string, entry_root: string, assertion: string, proposal_actor: string, proposal_action: string, proposal_reason: string, created_at: string, protocol_gate: string, blockers: Array<string>, rejection_available: boolean, verification_requirements: Array<string>, verifications: Array<VerificationFacetDto>, limits: Array<string>, standing_delta: StandingDeltaDto, authority_keyset_root: string, policy_bundle_root: string, authority_record_root: string, authority_event_log_root: string, };
+
+export type DecisionInboxDto = { repository_id: string, repository_root: string, projection_root: string, entries: Array<DecisionEntryDto>, observed_at_unix_ms: number, task: string, included_records: Array<string>, omissions: Array<string>, stale: boolean, refusal: StructuredVelaRefusalDto | null, };
+
+export type VerificationPreviewDto = { draft: VerificationDraftDto, repository_path: string, source_commit: string, source_tree: string, repository_root: string, proposal_root: string, submission_root: string, claim_root: string, vela_binary_sha256: string, argv: Array<string>, selected_output_roots: Array<string>, authority_effect: string, warning: string, };
+
+export type VerificationImportPreviewDto = { envelope_path: string, envelope_sha256: string, envelope_size: number, envelope_base64: string, verification_record_id: string, verification_record_root: string, verifier: string, proposal_id: string, proposal_root: string, submission_id: string, submission_root: string, claim_id: string, method_profile: string, method_path: string, environment_root: string, property: string, outcome: string, declared_independent_of: Array<string>, shared_dependencies: Array<string>, output_artifact_ids: Array<string>, does_not_establish: Array<string>, repository_path: string, source_commit: string, source_tree: string, vela_binary_sha256: string, argv: Array<string>, authority_effect: string, warning: string, };
+
+export type StructuredVelaRefusalDto = { kind: string, code: string | null, message: string, hint: string | null, command: string, operation_id: string | null, changed: boolean | null, next: string | null, };
+
+export type VerificationResultDto = { operation_id: string | null, verification_record_id: string | null, verification_record_root: string | null, proposal_id: string, claim_id: string | null, outcome: string | null, idempotent: boolean | null, accepted_event_delta: number | null, publication_state: string | null, publication_commit: string | null, refusal: StructuredVelaRefusalDto | null, };
+
+export type DecisionActionDto = "accept" | "reject";
+
+export type DecisionRequestDto = { proposal_id: string, entry_root: string, action: DecisionActionDto, reason: string, performer: string, session_ref: string | null, };
+
+export type DecisionPreviewDto = { request: DecisionRequestDto, repository_path: string, source_commit: string, source_tree: string, vela_binary_sha256: string, entry: DecisionEntryDto, performer_kind: string, repository_authority_principal: string, authentication: string, transaction_signer: string, ssh_agent_forwarded: boolean, argv: Array<string>, expected_successor: StandingStateDto, warning: string, };
+
+export type DecisionReadbackDto = { status: string, standing: string | null, decision_actor: string | null, decision_actor_class: string | null, authority_principal_id: string | null, decision_event_id: string | null, applied_event_id: string | null, event_root: string | null, repository_root: string, replay_accepted_claims: number, replay_pending_claims: number, };
+
+export type DecisionExecutionDto = { command_succeeded: boolean, decision_committed: boolean, successor_matches_preview: boolean, events_match_receipt: boolean | null, action: DecisionActionDto, proposal_id: string, entry_root: string, decision_plan_root: string | null, event_ids: Array<string>, authority_record_id: string | null, actual_performer: string | null, actual_performer_kind: string | null, actual_authority_principal: string | null, authentication: string | null, transaction_signer: string | null, scientific_state_changed: boolean | null, refusal: StructuredVelaRefusalDto | null, readback: DecisionReadbackDto, };
+
+export type RecoveryPreviewDto = { repository_path: string, operation_id: string, source_commit: string, source_tree: string, vela_binary_sha256: string, argv: Array<string>, warning: string, };
+
+export type RecoveryResultDto = { operation_id: string, outcome: string | null, repository_blocked_after: boolean | null, continuation_status: string | null, next_command: string | null, refusal: StructuredVelaRefusalDto | null, };
+
 export type CommandErrorDto = { kind: string, message: string, detail: string | null, };

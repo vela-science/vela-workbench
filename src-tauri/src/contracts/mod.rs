@@ -460,6 +460,292 @@ pub struct SubmissionResultDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationMethodDto {
+    pub path: String,
+    pub repository_relative_path: String,
+    pub sha256: String,
+    pub size: u64,
+    pub profile: String,
+    pub property: String,
+    pub reviewer_kind: Option<String>,
+    pub reviewer_display_name: Option<String>,
+    pub reviewer_identifier: Option<String>,
+    pub provider: Option<String>,
+    pub version: Option<String>,
+    pub attested_by_actor_id: Option<String>,
+    pub procedure: Vec<String>,
+    pub required_output: Vec<String>,
+    pub does_not_establish: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationDraftDto {
+    pub proposal_id: String,
+    pub profile: String,
+    pub method: VerificationMethodDto,
+    pub property: Option<String>,
+    pub complementary: bool,
+    pub outcome: String,
+    pub does_not_establish: Vec<String>,
+    pub independent_of: Vec<String>,
+    pub shared_dependencies: Vec<String>,
+    pub output_paths: Vec<String>,
+    pub actor: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationFacetDto {
+    pub verification_record_id: String,
+    pub verification_record_root: String,
+    pub verifier: String,
+    pub performer_kind: Option<String>,
+    pub performer_identifier: Option<String>,
+    pub provider: Option<String>,
+    pub version: Option<String>,
+    pub method_profile: String,
+    pub method_path: String,
+    pub environment_root: String,
+    pub property: String,
+    pub outcome: String,
+    pub declared_independent_of: Vec<String>,
+    pub shared_dependencies: Vec<String>,
+    pub evidence_artifact_ids: Vec<String>,
+    pub output_artifact_ids: Vec<String>,
+    pub does_not_establish: Vec<String>,
+    pub protocol_evidence_role: Option<String>,
+    pub satisfies_requirements: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct StandingStateDto {
+    pub repository_root: String,
+    pub accepted_claim_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct StandingDeltaDto {
+    pub transition: String,
+    pub affected_claim_ids: Vec<String>,
+    pub before: StandingStateDto,
+    pub if_accept: StandingStateDto,
+    pub if_reject: StandingStateDto,
+    pub global_accepted_before: u64,
+    pub global_accepted_if_accept: u64,
+    pub global_accepted_if_reject: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionEntryDto {
+    pub proposal_id: String,
+    pub proposal_root: String,
+    pub submission_root: String,
+    pub claim_id: String,
+    pub claim_root: String,
+    pub repository_root: String,
+    pub verification_set_root: String,
+    pub entry_root: String,
+    pub assertion: String,
+    pub proposal_actor: String,
+    pub proposal_action: String,
+    pub proposal_reason: String,
+    pub created_at: String,
+    pub protocol_gate: String,
+    pub blockers: Vec<String>,
+    pub rejection_available: bool,
+    pub verification_requirements: Vec<String>,
+    pub verifications: Vec<VerificationFacetDto>,
+    pub limits: Vec<String>,
+    pub standing_delta: StandingDeltaDto,
+    pub authority_keyset_root: String,
+    pub policy_bundle_root: String,
+    pub authority_record_root: String,
+    pub authority_event_log_root: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionInboxDto {
+    pub repository_id: String,
+    pub repository_root: String,
+    pub projection_root: String,
+    pub entries: Vec<DecisionEntryDto>,
+    pub observed_at_unix_ms: u64,
+    pub task: String,
+    pub included_records: Vec<String>,
+    pub omissions: Vec<String>,
+    pub stale: bool,
+    pub refusal: Option<StructuredVelaRefusalDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationPreviewDto {
+    pub draft: VerificationDraftDto,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub repository_root: String,
+    pub proposal_root: String,
+    pub submission_root: String,
+    pub claim_root: String,
+    pub vela_binary_sha256: String,
+    pub argv: Vec<String>,
+    pub selected_output_roots: Vec<String>,
+    pub authority_effect: String,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationImportPreviewDto {
+    pub envelope_path: String,
+    pub envelope_sha256: String,
+    pub envelope_size: u64,
+    pub envelope_base64: String,
+    pub verification_record_id: String,
+    pub verification_record_root: String,
+    pub verifier: String,
+    pub proposal_id: String,
+    pub proposal_root: String,
+    pub submission_id: String,
+    pub submission_root: String,
+    pub claim_id: String,
+    pub method_profile: String,
+    pub method_path: String,
+    pub environment_root: String,
+    pub property: String,
+    pub outcome: String,
+    pub declared_independent_of: Vec<String>,
+    pub shared_dependencies: Vec<String>,
+    pub output_artifact_ids: Vec<String>,
+    pub does_not_establish: Vec<String>,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub vela_binary_sha256: String,
+    pub argv: Vec<String>,
+    pub authority_effect: String,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct StructuredVelaRefusalDto {
+    pub kind: String,
+    pub code: Option<String>,
+    pub message: String,
+    pub hint: Option<String>,
+    pub command: String,
+    pub operation_id: Option<String>,
+    pub changed: Option<bool>,
+    pub next: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct VerificationResultDto {
+    pub operation_id: Option<String>,
+    pub verification_record_id: Option<String>,
+    pub verification_record_root: Option<String>,
+    pub proposal_id: String,
+    pub claim_id: Option<String>,
+    pub outcome: Option<String>,
+    pub idempotent: Option<bool>,
+    pub accepted_event_delta: Option<u64>,
+    pub publication_state: Option<String>,
+    pub publication_commit: Option<String>,
+    pub refusal: Option<StructuredVelaRefusalDto>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionActionDto {
+    Accept,
+    Reject,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionRequestDto {
+    pub proposal_id: String,
+    pub entry_root: String,
+    pub action: DecisionActionDto,
+    pub reason: String,
+    pub performer: String,
+    pub session_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionPreviewDto {
+    pub request: DecisionRequestDto,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub vela_binary_sha256: String,
+    pub entry: DecisionEntryDto,
+    pub performer_kind: String,
+    pub repository_authority_principal: String,
+    pub authentication: String,
+    pub transaction_signer: String,
+    pub ssh_agent_forwarded: bool,
+    pub argv: Vec<String>,
+    pub expected_successor: StandingStateDto,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionReadbackDto {
+    pub status: String,
+    pub standing: Option<String>,
+    pub decision_actor: Option<String>,
+    pub decision_actor_class: Option<String>,
+    pub authority_principal_id: Option<String>,
+    pub decision_event_id: Option<String>,
+    pub applied_event_id: Option<String>,
+    pub event_root: Option<String>,
+    pub repository_root: String,
+    pub replay_accepted_claims: u64,
+    pub replay_pending_claims: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionExecutionDto {
+    pub command_succeeded: bool,
+    pub decision_committed: bool,
+    pub successor_matches_preview: bool,
+    pub events_match_receipt: Option<bool>,
+    pub action: DecisionActionDto,
+    pub proposal_id: String,
+    pub entry_root: String,
+    pub decision_plan_root: Option<String>,
+    pub event_ids: Vec<String>,
+    pub authority_record_id: Option<String>,
+    pub actual_performer: Option<String>,
+    pub actual_performer_kind: Option<String>,
+    pub actual_authority_principal: Option<String>,
+    pub authentication: Option<String>,
+    pub transaction_signer: Option<String>,
+    pub scientific_state_changed: Option<bool>,
+    pub refusal: Option<StructuredVelaRefusalDto>,
+    pub readback: DecisionReadbackDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct RecoveryPreviewDto {
+    pub repository_path: String,
+    pub operation_id: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub vela_binary_sha256: String,
+    pub argv: Vec<String>,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct RecoveryResultDto {
+    pub operation_id: String,
+    pub outcome: Option<String>,
+    pub repository_blocked_after: Option<bool>,
+    pub continuation_status: Option<String>,
+    pub next_command: Option<String>,
+    pub refusal: Option<StructuredVelaRefusalDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 pub struct CommandErrorDto {
     pub kind: String,
     pub message: String,
@@ -528,6 +814,24 @@ pub fn typescript_bindings() -> String {
         SubmissionPreviewDto::decl(&config),
         SubmissionImportPreviewDto::decl(&config),
         SubmissionResultDto::decl(&config),
+        VerificationMethodDto::decl(&config),
+        VerificationDraftDto::decl(&config),
+        VerificationFacetDto::decl(&config),
+        StandingStateDto::decl(&config),
+        StandingDeltaDto::decl(&config),
+        DecisionEntryDto::decl(&config),
+        DecisionInboxDto::decl(&config),
+        VerificationPreviewDto::decl(&config),
+        VerificationImportPreviewDto::decl(&config),
+        StructuredVelaRefusalDto::decl(&config),
+        VerificationResultDto::decl(&config),
+        DecisionActionDto::decl(&config),
+        DecisionRequestDto::decl(&config),
+        DecisionPreviewDto::decl(&config),
+        DecisionReadbackDto::decl(&config),
+        DecisionExecutionDto::decl(&config),
+        RecoveryPreviewDto::decl(&config),
+        RecoveryResultDto::decl(&config),
         CommandErrorDto::decl(&config),
     ];
     let mut output =
@@ -550,18 +854,9 @@ mod tests {
     }
 
     #[test]
-    fn tranche_two_capability_exposes_no_generic_or_authority_command() {
+    fn tranche_three_capability_is_closed_and_contains_only_reviewed_authority_paths() {
         let permission = include_str!("../../permissions/workbench.toml");
-        for forbidden in [
-            "shell",
-            "http",
-            "upload",
-            "verification",
-            "accept",
-            "reject",
-            "decision",
-            "generic",
-        ] {
+        for forbidden in ["shell", "http", "upload", "provider", "generic", "session"] {
             assert!(
                 !permission.lines().any(|line| {
                     line.trim_start().starts_with('"')
@@ -572,5 +867,23 @@ mod tests {
         }
         assert!(permission.contains("preview_submission_draft"));
         assert!(permission.contains("import_submission"));
+        for required in [
+            "refresh_decision_inbox",
+            "preview_verification_record",
+            "record_verification",
+            "preview_decision",
+            "execute_decision",
+            "preview_recovery",
+            "recover_transaction",
+        ] {
+            assert!(permission.contains(required), "missing {required}");
+        }
+        assert_eq!(
+            permission
+                .lines()
+                .filter(|line| line.trim_start().starts_with('"'))
+                .count(),
+            29
+        );
     }
 }

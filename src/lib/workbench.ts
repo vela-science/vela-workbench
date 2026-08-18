@@ -2,6 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   BootstrapDto,
   CancelResultDto,
+  DecisionExecutionDto,
+  DecisionInboxDto,
+  DecisionPreviewDto,
+  DecisionRequestDto,
   EvidenceExportPreviewDto,
   EvidenceExportRequestDto,
   EvidenceExportResultDto,
@@ -18,6 +22,13 @@ import type {
   SubmissionImportPreviewDto,
   SubmissionPreviewDto,
   SubmissionResultDto,
+  VerificationDraftDto,
+  VerificationImportPreviewDto,
+  VerificationMethodDto,
+  VerificationPreviewDto,
+  VerificationResultDto,
+  RecoveryPreviewDto,
+  RecoveryResultDto,
   VelaBinaryDto,
   WorktreePreviewDto,
   WorktreeResultDto,
@@ -57,4 +68,24 @@ export const workbench = {
     invoke<SubmissionImportPreviewDto | null>("select_submission_import", { path }),
   importSubmission: (preview: SubmissionImportPreviewDto) =>
     invoke<SubmissionResultDto | null>("import_submission", { preview }),
+  refreshDecisionInbox: (path: string) =>
+    invoke<DecisionInboxDto>("refresh_decision_inbox", { path }),
+  selectVerificationMethod: (path: string) =>
+    invoke<VerificationMethodDto | null>("select_verification_method", { path }),
+  previewVerificationRecord: (path: string, draft: VerificationDraftDto) =>
+    invoke<VerificationPreviewDto>("preview_verification_record", { path, draft }),
+  recordVerification: (preview: VerificationPreviewDto) =>
+    invoke<VerificationResultDto | null>("record_verification", { preview }),
+  selectVerificationImport: (path: string) =>
+    invoke<VerificationImportPreviewDto | null>("select_verification_import", { path }),
+  importVerification: (preview: VerificationImportPreviewDto) =>
+    invoke<VerificationResultDto | null>("import_verification", { preview }),
+  previewDecision: (path: string, request: DecisionRequestDto) =>
+    invoke<DecisionPreviewDto>("preview_decision", { path, request }),
+  executeDecision: (preview: DecisionPreviewDto) =>
+    invoke<DecisionExecutionDto | null>("execute_decision", { preview }),
+  previewRecovery: (path: string, operationId: string) =>
+    invoke<RecoveryPreviewDto>("preview_recovery", { path, operationId }),
+  recoverTransaction: (preview: RecoveryPreviewDto) =>
+    invoke<RecoveryResultDto | null>("recover_transaction", { preview }),
 };
