@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapDto, RepositorySnapshotDto } from "./contracts/generated/ipc";
@@ -11,7 +11,10 @@ const bootstrap: BootstrapDto = {
     runtime_version: "vela 0.977.1",
     runtime_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
     runtime_sha256: "a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948",
-    read_only: true,
+    read_only: false,
+    tranche: "2",
+    mutation_scope: "detached_worktree_and_submission_intake_only",
+    tranche_three_enabled: false,
   },
 };
 
@@ -51,24 +54,56 @@ const snapshot: RepositorySnapshotDto = {
 const calls = vi.hoisted(() => ({
   bootstrap: vi.fn(), selectRepository: vi.fn(), inspectRepository: vi.fn(),
   selectVelaBinary: vi.fn(), clearRecents: vi.fn(), launchRepository: vi.fn(),
+  previewWorktree: vi.fn(), createWorktree: vi.fn(), selectNativeTool: vi.fn(),
+  previewNativeExec: vi.fn(), runNativeExec: vi.fn(), cancelNativeExec: vi.fn(),
+  selectEvidenceFile: vi.fn(), previewEvidenceExport: vi.fn(), exportEvidence: vi.fn(),
+  previewSubmissionDraft: vi.fn(), submitSubmissionDraft: vi.fn(),
+  selectSubmissionImport: vi.fn(), importSubmission: vi.fn(),
 }));
 
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
 import App from "./App";
 
-describe("Vela Workbench Tranche 1", () => {
+describe("Vela Workbench Tranche 2", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
     calls.bootstrap.mockResolvedValue(bootstrap);
     calls.selectRepository.mockResolvedValue(snapshot);
+    calls.inspectRepository.mockResolvedValue(snapshot);
     calls.launchRepository.mockResolvedValue({ target: snapshot.path, owner: "Terminal" });
+    calls.selectNativeTool.mockResolvedValue({ profile: "git_diff_check", path: "/usr/bin/git", sha256: "sha256:git", size: 100 });
+    calls.previewNativeExec.mockResolvedValue({
+      profile: "git_diff_check", label: "Git diff check", repository_path: snapshot.path,
+      source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
+      executable: { profile: "git_diff_check", path: "/usr/bin/git", sha256: "sha256:git", size: 100 },
+      argv: ["diff", "--no-ext-diff", "--no-textconv", "--check"], working_directory: snapshot.path,
+      environment: [{ name: "PATH", value: "/usr/bin:/bin" }], timeout_ms: 30000,
+      max_stdout_bytes: 2097152, max_stderr_bytes: 1048576,
+      trust_warning: "This profile can execute repository-controlled build scripts or plugins with your current local user privileges. Output, environment, lifetime, and process-tree controls are bounds only; this is not a sandbox or security isolation.",
+      sandboxed: false,
+    });
+    calls.runNativeExec.mockResolvedValue({
+      run_id: "run-explicit-1234", profile: "git_diff_check", state: "completed", exit_code: 0,
+      started_at_unix_ms: 1, completed_at_unix_ms: 2,
+      source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
+      executable_sha256: "sha256:git",
+      stdout: { stream: "stdout", sha256: "sha256:empty", size: 0, content_base64: "", content_utf8: "", truncated: false },
+      stderr: { stream: "stderr", sha256: "sha256:empty", size: 0, content_base64: "", content_utf8: "", truncated: false },
+      producer_check_method: "vela-workbench-git-diff-check", producer_check_outcome: "pass",
+    });
+    calls.selectEvidenceFile.mockResolvedValue({
+      source: { source: "local_file", path: `${snapshot.path}/result.txt`, repository_relative_path: "result.txt" },
+      display_name: "result.txt", sha256: "sha256:evidence", size: 7, media_type: "text/plain",
+      kind_hint: "output", source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
+      source_dirty: false, content_base64: "cmVzdWx0Cg==", content_utf8: "result\n", private: true,
+    });
   });
 
   it("starts with a local-only repository choice and runtime boundary", async () => {
     render(<App />);
     expect(await screen.findByText("Start from sovereign source")).toBeVisible();
-    expect(screen.getByText("Private files and credentials stay local.")).toBeVisible();
+    expect(screen.getByText("Private files, credentials, and evidence stay local.")).toBeVisible();
     expect(await screen.findByText("vela 0.977.1")).toBeVisible();
   });
 
@@ -80,9 +115,47 @@ describe("Vela Workbench Tranche 1", () => {
     expect(await screen.findByText("Vela Math")).toBeVisible();
     expect(screen.getByText("A bounded accepted result.")).toBeVisible();
     expect(screen.getByText("No reviewed Problem locator")).toBeVisible();
-    await user.click(screen.getByRole("tab", { name: "Execute / Source" }));
+    await user.click(screen.getByRole("tab", { name: "Execute" }));
     expect(await screen.findByText("Open exact source elsewhere")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Terminal" }));
     expect(calls.launchRepository).toHaveBeenCalledWith(snapshot.path, "terminal");
+  });
+
+  it("requires explicit native execution review and says the controls are not a sandbox", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("button", { name: "Select tool" }));
+    await user.click(await screen.findByRole("button", { name: "Review command" }));
+    expect(await screen.findByText(/current local user privileges/)).toBeVisible();
+    expect(screen.getByText("not sandboxed")).toBeVisible();
+    expect(calls.runNativeExec).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Start explicitly" }));
+    await waitFor(() => expect(calls.runNativeExec).toHaveBeenCalledTimes(1));
+  });
+
+  it("states that redaction creates a derived file and never edits selected evidence", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Capture" }));
+    await user.click(screen.getByRole("button", { name: "Choose one file" }));
+    expect(await screen.findByText("Redaction creates a new derived file. The selected source evidence is never edited.")).toBeVisible();
+    expect(screen.getByLabelText("Exact selected evidence bytes")).toHaveValue("result\n");
+    await user.click(screen.getByRole("checkbox", { name: "Create a derived redacted text output" }));
+    await user.type(screen.getByLabelText("Exclusions / redactions (one per line)"), "private line");
+    const derived = screen.getByLabelText("Exact derived UTF-8 output");
+    await user.clear(derived);
+    await user.type(derived, "public\n");
+    calls.previewEvidenceExport.mockResolvedValue(null);
+    await user.click(screen.getByRole("button", { name: "Choose destination and review export" }));
+    await waitFor(() => expect(calls.previewEvidenceExport).toHaveBeenCalledWith(snapshot.path, expect.objectContaining({
+      expected_sha256: "sha256:evidence",
+      exclusions: ["private line"],
+      redaction_confirmed: true,
+      derived_utf8: "public\n",
+    })));
+    expect(screen.getByLabelText("Exact selected evidence bytes")).toHaveValue("result\n");
   });
 });
