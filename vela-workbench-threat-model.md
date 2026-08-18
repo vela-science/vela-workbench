@@ -1,4 +1,6 @@
-# Vela Workbench Tranche 2 threat model
+# Vela Workbench Tranche 2 threat model (historical)
+
+Superseded for the current runtime by `vela-workbench-tranche3-appsec-threat-model.md` and the frozen pre-implementation contract in `vela-workbench-tranche3-threat-model.md`.
 
 ## Executive summary
 

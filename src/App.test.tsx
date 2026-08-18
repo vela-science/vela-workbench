@@ -12,9 +12,9 @@ const bootstrap: BootstrapDto = {
     runtime_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
     runtime_sha256: "a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948",
     read_only: false,
-    tranche: "2",
-    mutation_scope: "detached_worktree_and_submission_intake_only",
-    tranche_three_enabled: false,
+    tranche: "3",
+    mutation_scope: "explicit_verification_and_attributed_repository_decision",
+    tranche_three_enabled: true,
   },
 };
 
@@ -59,12 +59,40 @@ const calls = vi.hoisted(() => ({
   selectEvidenceFile: vi.fn(), previewEvidenceExport: vi.fn(), exportEvidence: vi.fn(),
   previewSubmissionDraft: vi.fn(), submitSubmissionDraft: vi.fn(),
   selectSubmissionImport: vi.fn(), importSubmission: vi.fn(),
+  refreshDecisionInbox: vi.fn(), selectVerificationMethod: vi.fn(),
+  previewVerificationRecord: vi.fn(), recordVerification: vi.fn(),
+  selectVerificationImport: vi.fn(), importVerification: vi.fn(),
+  previewDecision: vi.fn(), executeDecision: vi.fn(),
+  previewRecovery: vi.fn(), recoverTransaction: vi.fn(),
 }));
 
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
 import App from "./App";
 
-describe("Vela Workbench Tranche 2", () => {
+const verification = {
+  verification_record_id: "vvr_review", verification_record_root: "sha256:verification",
+  verifier: "agent:reviewer-b", performer_kind: "agent", performer_identifier: "reviewer-b",
+  provider: "provider-a", version: "model-1", method_profile: "lean-proof-review",
+  method_path: ".vela/methods/review.json", environment_root: "sha256:environment",
+  property: "formal-correctness", outcome: "pass", declared_independent_of: [],
+  shared_dependencies: ["same provider and source tree"], evidence_artifact_ids: ["var_input"],
+  output_artifact_ids: ["var_output"], does_not_establish: ["scientific acceptance"],
+  protocol_evidence_role: "independent", satisfies_requirements: ["formal review"],
+};
+
+const entry = {
+  proposal_id: "vpr_current", proposal_root: "sha256:proposal", submission_root: "sha256:submission",
+  claim_id: "vcl_current", claim_root: "sha256:claim", repository_root: "sha256:repository-before",
+  verification_set_root: "sha256:set", entry_root: "sha256:entry", assertion: "A scoped result.",
+  proposal_actor: "agent:producer", proposal_action: "new", proposal_reason: "bounded result",
+  created_at: "2026-08-18T00:00:00Z", protocol_gate: "ready", blockers: [], rejection_available: true,
+  verification_requirements: ["formal review"], verifications: [verification], limits: ["fixture only"],
+  standing_delta: { transition: "pending to accepted", current: { claim_id: null, claim_root: null, standing: null, revision: null, repository_root: "sha256:repository-before" }, accept: { claim_id: "vcl_current", claim_root: "sha256:claim", standing: "accepted", revision: 1, repository_root: "sha256:repository-after" }, reject: { claim_id: null, claim_root: null, standing: "rejected", revision: null, repository_root: "sha256:repository-rejected" } },
+  authority_keyset_root: "sha256:keys", policy_bundle_root: "sha256:policy",
+  authority_record_root: "sha256:authority", authority_event_log_root: "sha256:event-log",
+};
+
+describe("Vela Workbench Tranche 3", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,6 +126,9 @@ describe("Vela Workbench Tranche 2", () => {
       kind_hint: "output", source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
       source_dirty: false, content_base64: "cmVzdWx0Cg==", content_utf8: "result\n", private: true,
     });
+    calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
+    calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
+    calls.executeDecision.mockResolvedValue({ command_succeeded: true, decision_committed: true, successor_matches_preview: true, events_match_receipt: true, action: "accept", proposal_id: entry.proposal_id, entry_root: entry.entry_root, decision_plan_root: "sha256:plan", event_ids: ["vev_decision", "vev_applied"], authority_record_id: "var_authority", actual_performer: "agent:reviewer", actual_performer_kind: "agent", actual_authority_principal: "local:fixture", authentication: "local", transaction_signer: "fixture signer", scientific_state_changed: true, refusal: null, readback: { status: "accepted", decision_event_id: "vev_decision", applied_event_id: "vev_applied", standing: "accepted", claim_id: entry.claim_id, claim_root: entry.claim_root, repository_root: "sha256:repository-after", pending_inbox_count: 0, accepted_event_count: 1 } });
   });
 
   it("starts with a local-only repository choice and runtime boundary", async () => {
@@ -157,5 +188,34 @@ describe("Vela Workbench Tranche 2", () => {
       derived_utf8: "public\n",
     })));
     expect(screen.getByLabelText("Exact selected evidence bytes")).toHaveValue("result\n");
+  });
+
+  it("does not infer independence from actor identity and keeps task orientation explicit", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Verify & Decide" }));
+    expect(await screen.findByText("Inbox not read")).toBeVisible();
+    expect(calls.refreshDecisionInbox).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Refresh exact roots" }));
+    expect(await screen.findByText("Review exact pending Proposals")).toBeVisible();
+    expect(screen.getByText(/No hidden session or provider state/)).toBeVisible();
+    expect(screen.getByText(/Actor difference is never treated as independence/)).toBeVisible();
+  });
+
+  it("previews authority identity and separates Verification from actual Decision Standing", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Verify & Decide" }));
+    await user.click(screen.getByRole("button", { name: "Refresh exact roots" }));
+    await user.type(screen.getByLabelText("Bounded scientific reason"), "Evidence supports the bounded claim.");
+    await user.click(screen.getByRole("button", { name: "Review exact attributed Decision" }));
+    expect(await screen.findByText(/Resolved by signed Vela during execution/)).toBeVisible();
+    expect(screen.getByText(/same provider and source tree/)).toBeVisible();
+    expect(calls.executeDecision).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Execute after native confirmation" }));
+    expect(await screen.findByText("Actual Decision / Event / Standing readback")).toBeVisible();
+    expect(screen.getByText(/Verification outcome is not this Standing/)).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
 # Vela Workbench
 
-Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 2 preserves the read-only Orient surface and adds four bounded local actions: detached worktree creation, app-reviewed source-native command profiles, explicit evidence capture/export, and ordinary Submission v3 author/import through the signed Vela CLI. It remains non-authoritative: Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, and Vela Core owns scientific-state semantics.
+Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 3 preserves the bounded source, execution, evidence, and Submission surfaces, then completes the existing Repository loop with scoped Verification author/import, an exact Decision Inbox, and one explicitly confirmed attributed accept or reject through signed Vela. Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, and Vela Core owns scientific-state semantics and Repository authority.
 
 ## Boundary
 
@@ -30,7 +30,7 @@ bun run check
 bun run tauri build
 ```
 
-`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Tranche 2 packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
+`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Tranche 3 packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
 
 ## Security and deletion
 

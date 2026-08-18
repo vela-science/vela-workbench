@@ -4,7 +4,7 @@ register: product
 
 ## Product purpose
 
-Vela Workbench is a local desktop shell for inspecting exact Git and Vela state without absorbing the systems that own that state. It lets a researcher open several native repositories, orient to current accepted contributions, inspect worktrees and Entire checkpoint references, run one explicitly reviewed source-native profile, capture explicit evidence, and prepare an ordinary Submission v3. Tranche 2 makes only the bounded local changes named below; Verification, Decision, hosted authority, and generic execution remain absent.
+Vela Workbench is a local desktop shell for inspecting exact Git and Vela state without absorbing the systems that own that state. It lets a researcher open native repositories, orient to current contributions, inspect worktrees and Entire checkpoint references, run one explicitly reviewed source-native profile, capture explicit evidence, prepare an ordinary Submission v3, record or import a scoped Verification, and explicitly request one attributed Repository Decision through signed Vela. Hosted authority and generic execution remain absent.
 
 The application is useful when a researcher has private local files, multiple source repositories, and a signed Vela executable that must remain under local custody. It should make the boundaries among Git source state, Vela scientific state, Entire provenance, and external tools visible at every handoff.
 
@@ -21,7 +21,7 @@ Users are technically fluent. They value precision, compact density, legible ref
 1. Native repositories stay sovereign. The Workbench reads and hands off; it does not copy branches, checkpoints, transcripts, or scientific state.
 2. Core semantics stay in `vela --json`. Rust validates supported schemas and returns typed private IPC data. The renderer never parses `.vela` files or raw subprocess JSON.
 3. Public discovery and shared coordination stay in Problems/Web. The Workbench shows only an exact reviewed Problem locator when one is supplied.
-4. Local privilege stays narrow. Tranche 2 adds only reviewed native execution, explicit evidence selection/export, detached worktree creation, and producer-authenticated Submission intake. It still has no generic shell, filesystem, HTTP, upload, provider mutation, Verification, Decision, or authority action.
+4. Local privilege stays narrow. Tranche 3 adds only scoped Verification author/import, exact Inbox/show reads, accept/reject with the current entry root, immediate replay/readback, and exact structured recovery. It still has no generic shell, filesystem, HTTP, upload, provider mutation, hosted signer, background authority, queue, or session store.
 5. Fail closed and explain why. Missing binaries, unsupported schemas, invalid integrations, stale locators, and unavailable Entire references remain visible degraded states.
 6. Deletion must be harmless. Removing the app and its clearable preferences changes no Git ref, repository byte, Vela object, Event, Decision, Standing, or Web activity record.
 
@@ -37,12 +37,13 @@ Calm, exact, and operational. Labels name the owning system and the observation 
 - A public Problems catalogue or evidence feed copied into a desktop shell.
 - A decorative science interface that uses graphs, gradients, or status colors without semantic ownership.
 
-## Tranche 2 surfaces
+## Tranche 3 surfaces
 
 - Repository switcher: user-selected Git roots, clearable recents, local classification, branch and dirty state.
 - Orient: exact Git/Vela facts, accepted/current Claim rows, integration non-authority labels, reviewed Problem handoff only.
 - Execute / Source: worktrees, remotes, Entire checkpoint references, explicit local or HTTPS handoffs, detached worktree preview/create, and four app-reviewed command profiles. Execution is explicit and warns that repository-controlled build scripts/plugins run with the current user's privileges. The bounds are not a sandbox. There is no arbitrary argv surface.
 - Capture: explicit local files or one completed command stream, with exact bytes, digest, size, kind, source revision, exclusions, redaction confirmation, and one-shot local export. Redacted output is always a new derived file; selected source evidence is immutable to Workbench.
-- Review draft: preview one ordinary Submission v3 author/import operation through the pinned signed Vela CLI. Producer attribution is displayed separately from Repository authority. Verification and Decision are absent.
+- Review draft: preview one ordinary Submission v3 author/import operation through the pinned signed Vela CLI. Producer attribution is displayed separately from Repository authority.
+- Verify & Decide: refresh one exact current Inbox; preserve Method, evidence, toolchain/environment, performer/model/provider and declared shared-dependency facets; author/import one non-authoritative Verification; then preview and explicitly confirm one attributed accept or reject with the exact `entry_root`. Actual Decision, Event and Standing readback remains visually separate from Verification outcome.
 
-The renderer journey is Orient → Execute → Capture → Review draft. Every privilege-changing step has a preview and a fresh Rust-side revalidation; native confirmation is required immediately before a worktree, export, or Submission mutation.
+The renderer journey is Orient → Execute → Capture → Review draft → Verify & Decide. Every mutation has an exact preview and fresh Rust-side revalidation; native confirmation is required immediately before worktree, export, Submission, Verification, Decision, or recovery mutation. A compact task orientation is derived and memory-only; it lists its included records, omissions, roots and observation time and never becomes scientific state.
