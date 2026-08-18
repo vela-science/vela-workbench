@@ -9,9 +9,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::contracts::{
-    DecisionActionDto, DecisionEntryDto, DecisionExecutionDto, DecisionInboxDto,
-    DecisionPreviewDto, DecisionReadbackDto, DecisionRequestDto, GitSnapshotDto, PublicationWire,
-    RecoveryPreviewDto, RecoveryResultDto, StandingDeltaDto, StandingStateDto,
+    DecisionActionDto, DecisionBlockerDto, DecisionEntryDto, DecisionExecutionDto,
+    DecisionInboxDto, DecisionPreviewDto, DecisionReadbackDto, DecisionRequestDto, GitSnapshotDto,
+    PublicationWire, RecoveryPreviewDto, RecoveryResultDto, StandingDeltaDto, StandingStateDto,
     StructuredVelaRefusalDto, VerificationDraftDto, VerificationFacetDto,
     VerificationImportPreviewDto, VerificationMethodDto, VerificationPreviewDto,
     VerificationResultDto,
@@ -369,7 +369,16 @@ fn entry(value: &Value) -> Result<DecisionEntryDto, PortError> {
         proposal_reason: string(value, "proposal_reason")?.into(),
         created_at: string(value, "created_at")?.into(),
         protocol_gate: string(readiness, "protocol_gate")?.into(),
-        blockers: strings(readiness, "blockers")?,
+        blockers: array(readiness, "blockers")?
+            .iter()
+            .map(|blocker| {
+                Ok(DecisionBlockerDto {
+                    code: string(blocker, "code")?.into(),
+                    detail: string(blocker, "detail")?.into(),
+                    subject: optional_string(blocker, "subject")?,
+                })
+            })
+            .collect::<Result<Vec<_>, PortError>>()?,
         rejection_available: readiness
             .get("rejection_available")
             .and_then(Value::as_bool)
@@ -1179,6 +1188,92 @@ mod tests {
         assert_eq!(
             verification.protocol_evidence_role.as_deref(),
             Some("requirement_satisfying")
+        );
+    }
+
+    #[test]
+    fn live_disposable_reject_round_trip_when_explicitly_requested() {
+        let (Ok(repository), Ok(binary)) = (
+            std::env::var("VELA_WORKBENCH_T3_MUTATION_REPO"),
+            std::env::var("VELA_WORKBENCH_SMOKE_BINARY"),
+        ) else {
+            return;
+        };
+        let repository = Path::new(&repository).canonicalize().expect("fixture repo");
+        assert!(
+            repository
+                .join(".vela-workbench-disposable-authority-fixture")
+                .is_file(),
+            "authority mutation test refuses any repository without its exact disposable marker"
+        );
+        let binary = Path::new(&binary).canonicalize().expect("Vela binary");
+        let inbox = decision_inbox(&repository, &binary).expect("current Inbox");
+        assert_eq!(inbox.entries.len(), 1, "fixture must contain one Proposal");
+        let entry = &inbox.entries[0];
+        let git = super::super::git::inspect(&repository).expect("fixture Git identity");
+        let accept_preview = preview_decision(
+            &repository,
+            &binary,
+            &git,
+            DecisionRequestDto {
+                proposal_id: entry.proposal_id.clone(),
+                entry_root: entry.entry_root.clone(),
+                action: DecisionActionDto::Accept,
+                reason: "Exercise the independent-review refusal on a disposable fixture.".into(),
+                performer: "agent:workbench-tranche3-qa".into(),
+                session_ref: None,
+            },
+        )
+        .expect("acceptance preview");
+        let refused = execute_decision(&repository, &binary, &accept_preview)
+            .expect("structured independent-review refusal");
+        assert!(!refused.decision_committed);
+        assert_eq!(refused.readback.status, "pending_review");
+        assert_eq!(
+            refused
+                .refusal
+                .as_ref()
+                .and_then(|item| item.code.as_deref()),
+            Some("missing_independent_verification")
+        );
+        assert_eq!(refused.readback.repository_root, entry.repository_root);
+
+        let mut stale_request = accept_preview.request.clone();
+        stale_request.action = DecisionActionDto::Reject;
+        stale_request.entry_root = format!("sha256:{}", "0".repeat(64));
+        assert!(preview_decision(&repository, &binary, &git, stale_request).is_err());
+        assert_eq!(
+            decision_inbox(&repository, &binary)
+                .expect("Inbox after stale refusal")
+                .repository_root,
+            entry.repository_root
+        );
+
+        let preview = preview_decision(
+            &repository,
+            &binary,
+            &git,
+            DecisionRequestDto {
+                proposal_id: entry.proposal_id.clone(),
+                entry_root: entry.entry_root.clone(),
+                action: DecisionActionDto::Reject,
+                reason: "Reject only this disposable Workbench authority fixture.".into(),
+                performer: "agent:workbench-tranche3-qa".into(),
+                session_ref: None,
+            },
+        )
+        .expect("Decision preview");
+        let result = execute_decision(&repository, &binary, &preview).expect("Decision readback");
+        assert!(result.decision_committed);
+        assert_eq!(result.readback.status, "rejected");
+        assert_eq!(result.readback.standing.as_deref(), Some("rejected"));
+        assert!(result.successor_matches_preview);
+        assert_eq!(
+            decision_inbox(&repository, &binary)
+                .expect("final Inbox")
+                .entries
+                .len(),
+            0
         );
     }
 }

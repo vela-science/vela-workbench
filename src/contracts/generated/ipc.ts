@@ -92,7 +92,9 @@ export type StandingStateDto = { repository_root: string, accepted_claim_ids: Ar
 
 export type StandingDeltaDto = { transition: string, affected_claim_ids: Array<string>, before: StandingStateDto, if_accept: StandingStateDto, if_reject: StandingStateDto, global_accepted_before: number, global_accepted_if_accept: number, global_accepted_if_reject: number, };
 
-export type DecisionEntryDto = { proposal_id: string, proposal_root: string, submission_root: string, claim_id: string, claim_root: string, repository_root: string, verification_set_root: string, entry_root: string, assertion: string, proposal_actor: string, proposal_action: string, proposal_reason: string, created_at: string, protocol_gate: string, blockers: Array<string>, rejection_available: boolean, verification_requirements: Array<string>, verifications: Array<VerificationFacetDto>, limits: Array<string>, standing_delta: StandingDeltaDto, authority_keyset_root: string, policy_bundle_root: string, authority_record_root: string, authority_event_log_root: string, };
+export type DecisionBlockerDto = { code: string, detail: string, subject: string | null, };
+
+export type DecisionEntryDto = { proposal_id: string, proposal_root: string, submission_root: string, claim_id: string, claim_root: string, repository_root: string, verification_set_root: string, entry_root: string, assertion: string, proposal_actor: string, proposal_action: string, proposal_reason: string, created_at: string, protocol_gate: string, blockers: Array<DecisionBlockerDto>, rejection_available: boolean, verification_requirements: Array<string>, verifications: Array<VerificationFacetDto>, limits: Array<string>, standing_delta: StandingDeltaDto, authority_keyset_root: string, policy_bundle_root: string, authority_record_root: string, authority_event_log_root: string, };
 
 export type DecisionInboxDto = { repository_id: string, repository_root: string, projection_root: string, entries: Array<DecisionEntryDto>, observed_at_unix_ms: number, task: string, included_records: Array<string>, omissions: Array<string>, stale: boolean, refusal: StructuredVelaRefusalDto | null, };
 

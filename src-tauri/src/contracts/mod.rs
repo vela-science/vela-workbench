@@ -535,6 +535,13 @@ pub struct StandingDeltaDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct DecisionBlockerDto {
+    pub code: String,
+    pub detail: String,
+    pub subject: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 pub struct DecisionEntryDto {
     pub proposal_id: String,
     pub proposal_root: String,
@@ -550,7 +557,7 @@ pub struct DecisionEntryDto {
     pub proposal_reason: String,
     pub created_at: String,
     pub protocol_gate: String,
-    pub blockers: Vec<String>,
+    pub blockers: Vec<DecisionBlockerDto>,
     pub rejection_available: bool,
     pub verification_requirements: Vec<String>,
     pub verifications: Vec<VerificationFacetDto>,
@@ -819,6 +826,7 @@ pub fn typescript_bindings() -> String {
         VerificationFacetDto::decl(&config),
         StandingStateDto::decl(&config),
         StandingDeltaDto::decl(&config),
+        DecisionBlockerDto::decl(&config),
         DecisionEntryDto::decl(&config),
         DecisionInboxDto::decl(&config),
         VerificationPreviewDto::decl(&config),
