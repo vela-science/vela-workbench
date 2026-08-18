@@ -48,7 +48,7 @@ export type OpenGaussProjectDto = { manifest_path: string, manifest_sha256: stri
 
 export type OpenGaussGitIdentityDto = { branch: string | null, commit: string, tree: string, dirty: boolean, changed_paths: number, };
 
-export type OpenGaussHandoffPreviewDto = { repository_path: string, tool: OpenGaussToolDto, project: OpenGaussProjectDto, git_before: OpenGaussGitIdentityDto, cwd: string, interactive_argv: Array<string>, terminal_environment: Array<EnvironmentEntryDto>, documented_workflows: Array<string>, documented_entrypoint: string, backend_identity: string, hidden_transport_visible: boolean, upstream_source_commit: string, upstream_source_tree: string, authority_effect: string, boundary: string, };
+export type OpenGaussHandoffPreviewDto = { repository_path: string, tool: OpenGaussToolDto, project: OpenGaussProjectDto, git_before: OpenGaussGitIdentityDto, cwd: string, interactive_argv: Array<string>, launcher_environment: Array<EnvironmentEntryDto>, documented_workflows: Array<string>, documented_entrypoint: string, backend_identity: string, hidden_transport_visible: boolean, upstream_source_commit: string, upstream_source_tree: string, authority_effect: string, boundary: string, };
 
 export type OpenGaussSelectedEvidenceDto = { display_name: string, sha256: string, size: number, media_type: string, kind_hint: string, source_commit: string, source_tree: string, source: string, };
 

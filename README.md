@@ -1,12 +1,12 @@
 # Vela Workbench
 
-Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 3 preserves the bounded source, execution, evidence, and Submission surfaces, then completes the existing Repository loop with scoped Verification author/import, an exact Decision Inbox, and one explicitly confirmed attributed accept or reject through signed Vela. Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, and Vela Core owns scientific-state semantics and Repository authority.
+Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 3 preserves the bounded source, execution, evidence, and Submission surfaces, then completes the existing Repository loop with scoped Verification author/import, an exact Decision Inbox, and one explicitly confirmed attributed accept or reject through signed Vela. The bounded WB-OPENGAUSS-01 pilot adds verified detection of one external OpenGauss 0.2.2 executable, read-only inspection of one repository-owned project manifest, and explicit Terminal handoff without starting or embedding OpenGauss. Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, OpenGauss owns its interactive work, and Vela Core owns scientific-state semantics and Repository authority.
 
 ## Boundary
 
 Workbench does not own Git refs, Entire sessions, agent runtimes, Vela protocol objects, public discovery, hosted collaboration, or authority. It has no server, database, generic shell/filesystem/HTTP command, upload surface, remote WebView, provider app, or bundled Vela sidecar. The only persistent data is one Rust-owned preferences file containing clearable repository paths and selected tool paths; command output and selected evidence remain process-local and clear on exit or Clear recents.
 
-The renderer invokes a closed set of compiled private IPC commands. Rust canonicalizes paths, fixes command-profile arguments, bounds environment/output/lifetime/process-tree capture, verifies the selected Vela binary, parses supported JSON schemas, and generates the renderer DTO contract one-way from Rust. Native execution is not a sandbox: repository-controlled build scripts and plugins run with the current user's privileges, only after an exact preview and explicit initiation.
+The renderer invokes a closed set of compiled private IPC commands. Rust canonicalizes paths, fixes command-profile arguments, bounds environment/output/lifetime/process-tree capture, verifies the selected Vela binary, parses supported JSON schemas, and generates the renderer DTO contract one-way from Rust. Native execution is not a sandbox: repository-controlled build scripts and plugins run with the current user's privileges, only after an exact preview and explicit initiation. The OpenGauss probe has the same current-user warning; the later Terminal session is owned by Terminal and OpenGauss and is neither observed nor constrained by Workbench.
 
 ## Frozen foundation
 
@@ -17,6 +17,7 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 - Signed Core release `v0.977.1`, commit `0e057c0debcff775a3deb56150ceaccfd4707b41`, tree `55768612b82b93a4a01bb5aeddeb937dff678e4a`, Protocol 1 manifest root `sha256:448e7e80ac1ead40045d87df51f4352e80091c09ceae6e5acea250795b5ff9ed`
 - macOS arm64 runtime SHA-256 `a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948`; release manifest SHA-256 `6942a9f215909a55e849c7722a49ea961ef6259294c9f8ca36f944d6fd88d884`
 - Linux x86_64 runtime SHA-256 `3c25344f2a636a803d82fd7cf663e5638778d1121198301f478ff3dcc18f0270`; release manifest SHA-256 `6cd034646b57b1c5e8c3d85a95a882a3221f7277c543f6bdde69fc9757b423e4`
+- WB-OPENGAUSS-01 observed against `math-inc/OpenGauss` version `0.2.2`, commit `f87633900ae185b8037bf451a914fe7eeae1eb08`, tree `aa3768f7cf5dd06d01a972bc8ed789f7b43246fb`; OpenGauss is never bundled
 
 The prior merged-interface/runtime split is closed: interface fixtures and executable gating now name the same immutable signed v0.977.1 release. Each supported build accepts exactly one platform binary hash and one runtime version; v0.977.0 is not an alternate path.
 

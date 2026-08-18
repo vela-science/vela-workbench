@@ -64,6 +64,7 @@ const calls = vi.hoisted(() => ({
   selectVerificationImport: vi.fn(), importVerification: vi.fn(),
   previewDecision: vi.fn(), executeDecision: vi.fn(),
   previewRecovery: vi.fn(), recoverTransaction: vi.fn(),
+  selectOpenGauss: vi.fn(), launchOpenGaussHandoff: vi.fn(), refreshOpenGaussHandoff: vi.fn(),
 }));
 
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
@@ -91,6 +92,31 @@ const entry = {
   authority_keyset_root: "sha256:keys", policy_bundle_root: "sha256:policy",
   authority_record_root: "sha256:authority", authority_event_log_root: "sha256:event-log",
 };
+
+const opengaussPreview = {
+  repository_path: snapshot.path,
+  tool: {
+    path: "/opt/gauss/bin/gauss", version: "Gauss v0.2.2 (2026.4.5)", sha256: "sha256:gauss", size: 8123,
+    probe_argv: ["--version"], probe_environment: [{ name: "PATH", value: "/opt/gauss/bin:/usr/bin:/bin" }],
+    trust_warning: "The selected OpenGauss executable runs with your current local user privileges. Bounds are not a sandbox or security isolation.",
+  },
+  project: {
+    manifest_path: `${snapshot.path}/.gauss/project.yaml`, manifest_sha256: "sha256:project", manifest_size: 214,
+    schema_version: 1, name: "Disposable pilot", kind: "lean4", project_root: snapshot.path, lean_root: snapshot.path,
+    source_mode: "init", template_source_declared: false, blueprint_markers: [], configured_paths_validated: true,
+  },
+  git_before: { branch: "main", commit: snapshot.git.head_commit, tree: snapshot.git.head_tree, dirty: false, changed_paths: 0 },
+  cwd: snapshot.path, interactive_argv: ["/opt/gauss/bin/gauss"],
+  launcher_environment: [{ name: "PATH", value: "/usr/bin:/bin" }],
+  documented_workflows: ["/prove", "/draft", "/review", "/checkpoint", "/refactor", "/golf", "/formalize"],
+  documented_entrypoint: "Interactive OpenGauss slash command selected by the user after handoff",
+  backend_identity: "Not exposed by project.yaml or the Workbench handoff; OpenGauss owns backend selection",
+  hidden_transport_visible: false,
+  upstream_source_commit: "f87633900ae185b8037bf451a914fe7eeae1eb08",
+  upstream_source_tree: "aa3768f7cf5dd06d01a972bc8ed789f7b43246fb",
+  authority_effect: "none",
+  boundary: "Workbench opens Terminal at the exact project root. It does not start OpenGauss, type a slash command, observe hidden model transport, or ingest OpenGauss session state.",
+} as const;
 
 describe("Vela Workbench Tranche 3", () => {
   afterEach(cleanup);
@@ -129,6 +155,9 @@ describe("Vela Workbench Tranche 3", () => {
     calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
     calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
     calls.executeDecision.mockResolvedValue({ command_succeeded: true, decision_committed: true, successor_matches_preview: true, events_match_receipt: true, action: "accept", proposal_id: entry.proposal_id, entry_root: entry.entry_root, decision_plan_root: "sha256:plan", event_ids: ["vev_decision", "vev_applied"], authority_record_id: "var_authority", actual_performer: "agent:reviewer", actual_performer_kind: "agent", actual_authority_principal: "local:fixture", authentication: "local", transaction_signer: "fixture signer", scientific_state_changed: true, refusal: null, readback: { status: "accepted", decision_event_id: "vev_decision", applied_event_id: "vev_applied", standing: "accepted", claim_id: entry.claim_id, claim_root: entry.claim_root, repository_root: "sha256:repository-after", pending_inbox_count: 0, accepted_event_count: 1 } });
+    calls.selectOpenGauss.mockResolvedValue(opengaussPreview);
+    calls.launchOpenGaussHandoff.mockResolvedValue({ preview: opengaussPreview, terminal_owner: "Terminal", launched_at_unix_ms: 1_787_000_000_100, git_after: null, selected_evidence: [], selected_checks: [], result_boundary: "No external result is inferred. Select exact evidence." });
+    calls.refreshOpenGaussHandoff.mockImplementation(async (receipt) => ({ ...receipt, git_after: opengaussPreview.git_before }));
   });
 
   it("starts with a local-only repository choice and runtime boundary", async () => {
@@ -218,5 +247,42 @@ describe("Vela Workbench Tranche 3", () => {
     await user.click(screen.getByRole("button", { name: "Execute after native confirmation" }));
     expect(await screen.findByText("Actual Decision / Event / Standing readback")).toBeVisible();
     expect(screen.getByText(/Verification outcome is not this Standing/)).toBeVisible();
+  });
+
+  it("keeps OpenGauss workflows behind an explicit interactive-only handoff", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    expect(await screen.findByText("OpenGauss handoff pilot")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Select OpenGauss" }));
+    expect(await screen.findByText(/current local user privileges/)).toBeVisible();
+    expect(screen.getByText("/prove")).toBeVisible();
+    expect(screen.getByText(/slash commands, not stable shell workflow argv/)).toBeVisible();
+    expect(screen.getByText(/Workbench does not type or automate them/)).toBeVisible();
+    expect(screen.getByText(/Hidden model transport visible: false/)).toBeVisible();
+    expect(calls.launchOpenGaussHandoff).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Open explicit Terminal handoff" }));
+    await waitFor(() => expect(calls.launchOpenGaussHandoff).toHaveBeenCalledWith(opengaussPreview));
+    expect(await screen.findByText(/Workbench did not start OpenGauss or type a workflow command/)).toBeVisible();
+  });
+
+  it("binds only explicit Workbench evidence to the OpenGauss receipt", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Capture" }));
+    await user.click(screen.getByRole("button", { name: "Choose one file" }));
+    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("button", { name: "Select OpenGauss" }));
+    await user.click(screen.getByRole("button", { name: "Open explicit Terminal handoff" }));
+    await user.click(await screen.findByRole("checkbox", { name: /result.txt/ }));
+    await user.click(screen.getByRole("button", { name: "Refresh Git and bind selected evidence" }));
+    await waitFor(() => expect(calls.refreshOpenGaussHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({ terminal_owner: "Terminal" }),
+      [expect.objectContaining({ source: "local_file", repository_relative_path: "result.txt" })],
+      [],
+    ));
+    expect(screen.getByText(/OpenGauss provenance remains external-tool provenance/)).toBeVisible();
   });
 });

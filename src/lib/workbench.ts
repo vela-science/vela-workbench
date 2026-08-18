@@ -16,6 +16,8 @@ import type {
   NativeExecProfileDto,
   NativeExecResultDto,
   NativeToolDto,
+  OpenGaussHandoffPreviewDto,
+  OpenGaussHandoffReceiptDto,
   PreferencesDto,
   RepositorySnapshotDto,
   SubmissionDraftDto,
@@ -88,4 +90,17 @@ export const workbench = {
     invoke<RecoveryPreviewDto>("preview_recovery", { path, operationId }),
   recoverTransaction: (preview: RecoveryPreviewDto) =>
     invoke<RecoveryResultDto | null>("recover_transaction", { preview }),
+  selectOpenGauss: (path: string) =>
+    invoke<OpenGaussHandoffPreviewDto | null>("select_opengauss", { path }),
+  launchOpenGaussHandoff: (preview: OpenGaussHandoffPreviewDto) =>
+    invoke<OpenGaussHandoffReceiptDto | null>("launch_opengauss_handoff", { preview }),
+  refreshOpenGaussHandoff: (
+    receipt: OpenGaussHandoffReceiptDto,
+    evidenceSources: EvidenceItemDto["source"][],
+    checkRunIds: string[],
+  ) => invoke<OpenGaussHandoffReceiptDto>("refresh_opengauss_handoff", {
+    receipt,
+    evidenceSources,
+    checkRunIds,
+  }),
 };

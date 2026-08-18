@@ -110,17 +110,18 @@ type a slash command. The visible receipt binds:
 
 - executable path, `Gauss v0.2.2` identity, digest, and size;
 - project manifest path/root, project and Lean roots, upstream source commit;
-- cwd, fixed interactive command `[<selected gauss path>]`, and cleared terminal
-  launch environment;
+- cwd, displayed interactive command boundary `[<selected gauss path>]`, and the
+  cleared bounded `/usr/bin/open` launcher environment; the later Terminal shell
+  environment is owned by Terminal and is unobserved/unconstrained;
 - documented interactive workflow entrypoints and the explicit boundary that
   no workflow argv was automated;
 - backend/model/transport as unobserved at this boundary;
 - Git commit/tree/dirty state before external work.
 
-Refresh consumes no external state. It revalidates Repository/project/executable
-identity and records only Git commit/tree/dirty state after the external handoff.
-Selected result artifacts and checks remain empty until the user explicitly uses
-the existing Capture and NativeExec surfaces. OpenGauss progress/checkpoints are
+Refresh consumes no OpenGauss state. It revalidates Repository/project/executable
+identity, records Git commit/tree/dirty state after the external handoff, and may
+bind only files or check receipts the user explicitly selected through the
+existing Capture and NativeExec surfaces. OpenGauss progress/checkpoints are
 never rendered as Verification, Decision, Event, or Standing.
 
 ## Falsifiers and gates
