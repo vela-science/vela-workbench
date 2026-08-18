@@ -17,13 +17,13 @@ use crate::{
         DecisionPreviewDto, DecisionRequestDto, EvidenceExportPreviewDto, EvidenceExportRequestDto,
         EvidenceExportResultDto, EvidenceItemDto, EvidenceSourceDto, GitSnapshotDto, LaunchKindDto,
         LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto, NativeExecResultDto,
-        NativeToolDto, OpenGaussHandoffPreviewDto, OpenGaussHandoffReceiptDto,
-        OpenGaussSelectedCheckDto, OpenGaussSelectedEvidenceDto, PreferencesDto,
-        RecoveryPreviewDto, RecoveryResultDto, RepositorySnapshotDto, RuntimePolicyDto,
-        SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto,
-        VelaBinaryDto, VelaInspectionDto, VerificationDraftDto, VerificationImportPreviewDto,
-        VerificationMethodDto, VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto,
-        WorktreeResultDto,
+        NativeToolDto, OpenGaussGitIdentityDto, OpenGaussHandoffPreviewDto,
+        OpenGaussHandoffReceiptDto, OpenGaussSelectedCheckDto, OpenGaussSelectedEvidenceDto,
+        PreferencesDto, RecoveryPreviewDto, RecoveryResultDto, RepositorySnapshotDto,
+        RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto,
+        SubmissionResultDto, VelaBinaryDto, VelaInspectionDto, VerificationDraftDto,
+        VerificationImportPreviewDto, VerificationMethodDto, VerificationPreviewDto,
+        VerificationResultDto, WorktreePreviewDto, WorktreeResultDto,
     },
     ports::{self, PortError},
     preferences::PreferencesStore,
@@ -34,11 +34,17 @@ pub(crate) struct AppState {
     privileged: Mutex<PrivilegedState>,
 }
 
+#[derive(Clone)]
+struct CompletedRun {
+    result: NativeExecResultDto,
+    preview: NativeExecPreviewDto,
+}
+
 #[derive(Default)]
 struct PrivilegedState {
     tools: BTreeMap<NativeExecProfileDto, NativeToolDto>,
     active_run: Option<(String, Arc<AtomicBool>)>,
-    completed_runs: BTreeMap<String, NativeExecResultDto>,
+    completed_runs: BTreeMap<String, CompletedRun>,
     evidence: BTreeMap<String, ports::evidence::CapturedEvidence>,
     recovery_operations: BTreeMap<String, String>,
     selected_opengauss: Option<OpenGaussHandoffPreviewDto>,
@@ -63,8 +69,9 @@ impl PrivilegedState {
         self.opengauss_generation
     }
 
-    fn remember_run(&mut self, result: NativeExecResultDto) {
-        self.completed_runs.insert(result.run_id.clone(), result);
+    fn remember_run(&mut self, result: NativeExecResultDto, preview: NativeExecPreviewDto) {
+        self.completed_runs
+            .insert(result.run_id.clone(), CompletedRun { result, preview });
         while self.completed_runs.len() > 4 {
             if let Some(first) = self.completed_runs.keys().next().cloned() {
                 self.completed_runs.remove(&first);
@@ -591,20 +598,60 @@ fn opengauss_evidence(item: &EvidenceItemDto) -> OpenGaussSelectedEvidenceDto {
     }
 }
 
-fn opengauss_check(result: &NativeExecResultDto) -> OpenGaussSelectedCheckDto {
+fn opengauss_check(run: &CompletedRun) -> OpenGaussSelectedCheckDto {
+    let result = &run.result;
+    let preview = &run.preview;
     OpenGaussSelectedCheckDto {
         run_id: result.run_id.clone(),
+        repository_path: preview.repository_path.clone(),
         profile: result.profile,
         state: result.state.clone(),
         exit_code: result.exit_code,
         source_commit: result.source_commit.clone(),
         source_tree: result.source_tree.clone(),
+        executable_path: preview.executable.path.clone(),
         executable_sha256: result.executable_sha256.clone(),
+        argv: preview.argv.clone(),
+        working_directory: preview.working_directory.clone(),
+        environment: preview.environment.clone(),
+        timeout_ms: preview.timeout_ms,
+        max_stdout_bytes: preview.max_stdout_bytes,
+        max_stderr_bytes: preview.max_stderr_bytes,
         stdout_sha256: result.stdout.sha256.clone(),
         stderr_sha256: result.stderr.sha256.clone(),
         producer_check_method: result.producer_check_method.clone(),
         producer_check_outcome: result.producer_check_outcome.clone(),
     }
+}
+
+fn validate_opengauss_result_bindings(
+    repository: &Path,
+    git_after: &OpenGaussGitIdentityDto,
+    evidence: &[OpenGaussSelectedEvidenceDto],
+    checks: &[OpenGaussSelectedCheckDto],
+) -> Result<(), CommandErrorDto> {
+    let repository = repository.display().to_string();
+    if evidence
+        .iter()
+        .any(|item| item.source_commit != git_after.commit || item.source_tree != git_after.tree)
+    {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "selected OpenGauss evidence belongs to a different source revision; capture it again",
+        ));
+    }
+    if checks.iter().any(|item| {
+        item.repository_path != repository
+            || item.working_directory != repository
+            || item.source_commit != git_after.commit
+            || item.source_tree != git_after.tree
+    }) {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "selected OpenGauss check belongs to a different Repository or source revision; run it again",
+        ));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -687,6 +734,16 @@ pub(crate) async fn refresh_opengauss_handoff(
             })
             .collect::<Result<Vec<_>, _>>()?
     };
+    let git_after = refreshed
+        .git_after
+        .as_ref()
+        .ok_or_else(|| CommandErrorDto::new("internal", "OpenGauss refresh omitted Git-after"))?;
+    validate_opengauss_result_bindings(
+        &canonical,
+        git_after,
+        &selected_evidence,
+        &selected_checks,
+    )?;
     let confirmed_git = ports::git::inspect(&canonical).map_err(CommandErrorDto::from)?;
     if refreshed.git_after.as_ref() != Some(&ports::opengauss::git_identity(&confirmed_git)) {
         return Err(CommandErrorDto::new(
@@ -892,6 +949,7 @@ pub(crate) async fn run_native_exec(
         .map(|(_, cancellation)| Arc::clone(cancellation))
         .ok_or_else(state_error)?;
     let run_id_for_task = run_id.clone();
+    let preview_for_storage = preview.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
         let current_git = ports::git::inspect(&canonical)?;
         ports::native_exec::run(run_id_for_task, &current_git, &preview, cancellation)
@@ -904,7 +962,7 @@ pub(crate) async fn run_native_exec(
     })?;
     let result = result.map_err(CommandErrorDto::from)?;
     if may_store {
-        privileged.remember_run(result.clone());
+        privileged.remember_run(result.clone(), preview_for_storage);
     }
     Ok(result)
 }
@@ -1002,7 +1060,7 @@ fn resolve_evidence(
             Ok(original)
         }
         EvidenceSourceDto::CommandOutput { run_id, stream } => {
-            let result = state
+            let run = state
                 .privileged
                 .lock()
                 .map_err(|_| state_error())?
@@ -1015,7 +1073,15 @@ fn resolve_evidence(
                         "completed run output is no longer in bounded memory",
                     )
                 })?;
-            ports::evidence::capture_output(&result, stream).map_err(Into::into)
+            if run.preview.repository_path != root.display().to_string()
+                || run.preview.working_directory != root.display().to_string()
+            {
+                return Err(CommandErrorDto::new(
+                    "stale",
+                    "completed command output belongs to a different Repository",
+                ));
+            }
+            ports::evidence::capture_output(&run.result, stream).map_err(Into::into)
         }
     }
 }
@@ -1098,12 +1164,20 @@ fn resolved_producer_checks(
         .producer_check_run_ids
         .iter()
         .map(|run_id| {
-            let result = privileged.completed_runs.get(run_id).ok_or_else(|| {
+            let run = privileged.completed_runs.get(run_id).ok_or_else(|| {
                 CommandErrorDto::new(
                     "run_not_available",
                     format!("producer check run {run_id} is no longer in bounded memory"),
                 )
             })?;
+            let result = &run.result;
+            if run.preview.repository_path != git.root || run.preview.working_directory != git.root
+            {
+                return Err(CommandErrorDto::new(
+                    "stale",
+                    format!("producer check run {run_id} belongs to a different Repository"),
+                ));
+            }
             if result.source_commit != git.head_commit || result.source_tree != git.head_tree {
                 return Err(CommandErrorDto::new(
                     "stale",
@@ -1876,11 +1950,12 @@ mod tests {
 
     use super::{
         PrivilegedState, decision_dialog_intent, dialog_value, inspect_path,
-        preflight_submission_draft,
+        preflight_submission_draft, validate_opengauss_result_bindings,
     };
     use crate::contracts::{
         DecisionActionDto, DecisionRequestDto, NativeExecProfileDto, NativeExecResultDto,
-        NativeExecStateDto, NativeOutputDto, SubmissionDraftDto,
+        NativeExecStateDto, NativeOutputDto, OpenGaussGitIdentityDto, OpenGaussSelectedCheckDto,
+        OpenGaussSelectedEvidenceDto, SubmissionDraftDto,
     };
 
     fn file_manifest(path: &Path, root: &Path, out: &mut BTreeMap<String, String>) {
@@ -1984,9 +2059,7 @@ mod tests {
             producer_check_outcome: "skipped".into(),
         };
         let may_store = state.take_run("run-clear-race");
-        if may_store {
-            state.remember_run(result);
-        }
+        let _ = result;
         assert!(!may_store);
         assert!(state.completed_runs.is_empty());
     }
@@ -2006,6 +2079,67 @@ mod tests {
             producer: "agent:test".into(),
         };
         assert!(preflight_submission_draft(&draft).is_err());
+    }
+
+    #[test]
+    fn opengauss_result_bindings_require_exact_repository_and_git_after() {
+        let repository = Path::new("/private/tmp/disposable-open-gauss");
+        let after = OpenGaussGitIdentityDto {
+            branch: Some("main".into()),
+            commit: "1".repeat(40),
+            tree: "2".repeat(40),
+            dirty: false,
+            changed_paths: 0,
+        };
+        let evidence = OpenGaussSelectedEvidenceDto {
+            display_name: "result.lean".into(),
+            sha256: format!("sha256:{}", "3".repeat(64)),
+            size: 12,
+            media_type: "text/plain".into(),
+            kind_hint: "lean-source".into(),
+            source_commit: after.commit.clone(),
+            source_tree: after.tree.clone(),
+            source: "Result.lean".into(),
+        };
+        let check = OpenGaussSelectedCheckDto {
+            run_id: "run-opengauss-binding".into(),
+            repository_path: repository.display().to_string(),
+            profile: NativeExecProfileDto::LeanBuild,
+            state: NativeExecStateDto::Completed,
+            exit_code: Some(0),
+            source_commit: after.commit.clone(),
+            source_tree: after.tree.clone(),
+            executable_path: "/usr/local/bin/lake".into(),
+            executable_sha256: format!("sha256:{}", "4".repeat(64)),
+            argv: vec!["build".into()],
+            working_directory: repository.display().to_string(),
+            environment: Vec::new(),
+            timeout_ms: 120_000,
+            max_stdout_bytes: 1_048_576,
+            max_stderr_bytes: 1_048_576,
+            stdout_sha256: format!("sha256:{}", "5".repeat(64)),
+            stderr_sha256: format!("sha256:{}", "6".repeat(64)),
+            producer_check_method: "vela-workbench-lean-build".into(),
+            producer_check_outcome: "pass".into(),
+        };
+        validate_opengauss_result_bindings(
+            repository,
+            &after,
+            std::slice::from_ref(&evidence),
+            std::slice::from_ref(&check),
+        )
+        .expect("exact result binding");
+
+        let mut stale_evidence = evidence;
+        stale_evidence.source_tree = "7".repeat(40);
+        assert!(
+            validate_opengauss_result_bindings(repository, &after, &[stale_evidence], &[]).is_err()
+        );
+        let mut foreign_check = check;
+        foreign_check.repository_path = "/private/tmp/other-repository".into();
+        assert!(
+            validate_opengauss_result_bindings(repository, &after, &[], &[foreign_check]).is_err()
+        );
     }
 
     #[test]

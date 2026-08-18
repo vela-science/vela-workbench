@@ -121,8 +121,11 @@ type a slash command. The visible receipt binds:
 Refresh consumes no OpenGauss state. It revalidates Repository/project/executable
 identity, records Git commit/tree/dirty state after the external handoff, and may
 bind only files or check receipts the user explicitly selected through the
-existing Capture and NativeExec surfaces. OpenGauss progress/checkpoints are
-never rendered as Verification, Decision, Event, or Standing.
+existing Capture and NativeExec surfaces. Every item must match Git-after
+commit/tree; a check also binds its canonical Repository/cwd, exact executable,
+fixed argv, bounded environment/capture limits, and output digests from the
+host-owned preview. OpenGauss progress/checkpoints are never rendered as
+Verification, Decision, Event, or Standing.
 
 ## Falsifiers and gates
 
@@ -149,7 +152,10 @@ selected OpenGauss process, once the user starts it in Terminal, has the user's
 full privileges and may access files, credentials, and network; Workbench's
 probe and handoff controls are bounds and provenance disclosure, never a sandbox.
 Workbench cannot observe hidden backend/model transport or prove what occurred
-outside its selected Git/files/check outputs.
+outside its selected Git/files/check outputs. Commit/tree identity does not hash
+dirty worktree bytes, so a retained check at the same HEAD may predate subsequent
+uncommitted edits; the receipt shows exact run inputs/output and makes no current
+validation claim unless the user reruns the check.
 
 Time-frozen epistemic replay is a later evaluation program: freeze exact state at
 `t0`, hide later evidence, capture a proposed transition, and score it against

@@ -52,7 +52,7 @@ export type OpenGaussHandoffPreviewDto = { repository_path: string, tool: OpenGa
 
 export type OpenGaussSelectedEvidenceDto = { display_name: string, sha256: string, size: number, media_type: string, kind_hint: string, source_commit: string, source_tree: string, source: string, };
 
-export type OpenGaussSelectedCheckDto = { run_id: string, profile: NativeExecProfileDto, state: NativeExecStateDto, exit_code: number | null, source_commit: string, source_tree: string, executable_sha256: string, stdout_sha256: string, stderr_sha256: string, producer_check_method: string, producer_check_outcome: string, };
+export type OpenGaussSelectedCheckDto = { run_id: string, repository_path: string, profile: NativeExecProfileDto, state: NativeExecStateDto, exit_code: number | null, source_commit: string, source_tree: string, executable_path: string, executable_sha256: string, argv: Array<string>, working_directory: string, environment: Array<EnvironmentEntryDto>, timeout_ms: number, max_stdout_bytes: number, max_stderr_bytes: number, stdout_sha256: string, stderr_sha256: string, producer_check_method: string, producer_check_outcome: string, };
 
 export type OpenGaussHandoffReceiptDto = { preview: OpenGaussHandoffPreviewDto, terminal_owner: string, launched_at_unix_ms: number, git_after: OpenGaussGitIdentityDto | null, selected_evidence: Array<OpenGaussSelectedEvidenceDto>, selected_checks: Array<OpenGaussSelectedCheckDto>, result_boundary: string, };
 

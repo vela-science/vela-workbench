@@ -285,4 +285,45 @@ describe("Vela Workbench Tranche 3", () => {
     ));
     expect(screen.getByText(/OpenGauss provenance remains external-tool provenance/)).toBeVisible();
   });
+
+  it("renders the exact reviewed command path bound to an OpenGauss receipt", async () => {
+    calls.refreshOpenGaussHandoff.mockImplementation(async (receipt, _evidence, runIds) => ({
+      ...receipt,
+      git_after: opengaussPreview.git_before,
+      selected_checks: runIds.map((runId: string) => ({
+        run_id: runId,
+        repository_path: snapshot.path,
+        profile: "git_diff_check" as const,
+        state: "completed" as const,
+        exit_code: 0,
+        source_commit: snapshot.git.head_commit,
+        source_tree: snapshot.git.head_tree,
+        executable_path: "/usr/bin/git",
+        executable_sha256: "sha256:git",
+        argv: ["diff", "--no-ext-diff", "--no-textconv", "--check"],
+        working_directory: snapshot.path,
+        environment: [{ name: "PATH", value: "/usr/bin:/bin" }],
+        timeout_ms: 30000,
+        max_stdout_bytes: 2097152,
+        max_stderr_bytes: 1048576,
+        stdout_sha256: "sha256:empty",
+        stderr_sha256: "sha256:empty",
+        producer_check_method: "vela-workbench-git-diff-check",
+        producer_check_outcome: "pass",
+      })),
+    }));
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("button", { name: "Select tool" }));
+    await user.click(await screen.findByRole("button", { name: "Review command" }));
+    await user.click(screen.getByRole("button", { name: "Start explicitly" }));
+    await user.click(screen.getByRole("button", { name: "Select OpenGauss" }));
+    await user.click(screen.getByRole("button", { name: "Open explicit Terminal handoff" }));
+    await user.click(await screen.findByRole("checkbox", { name: /run-explicit-1234/ }));
+    await user.click(screen.getByRole("button", { name: "Refresh Git and bind selected evidence" }));
+    expect(await screen.findByText(/\/usr\/bin\/git.*"diff".*cwd \/private\/research\/math/)).toBeVisible();
+    expect(screen.getByText(new RegExp(`source ${snapshot.git.head_commit}/${snapshot.git.head_tree}`))).toBeVisible();
+  });
 });
