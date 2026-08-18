@@ -1,7 +1,7 @@
 # Vela Workbench Tranche 3 threat and capability contract
 
-Status: frozen before privileged implementation  
-Runtime: signed Vela `v0.977.1` only  
+Status: frozen before privileged implementation
+Runtime: signed Vela `v0.977.1` only
 Base: `1d5e8e29b1429b273461dd56d9347dc630c1536c`
 
 ## Scope
@@ -47,8 +47,8 @@ Only the selected, hash-pinned `v0.977.1` binary may run:
 - `vela verification import --repo <root> <record> --as <actor> --json`
 - `vela review accept|reject --repo <root> <proposal> --reason <reason>
   --if-entry-root <root> --as <human-or-agent> [--session-ref <ref>] --json`
-- `vela replay --repo <root> --json`, `vela review show ... --json`, and
-  `vela why ... --json` for immediate post-Decision readback
+- `vela replay --repo <root> --json` and `vela review show ... --json` for
+  immediate post-Decision readback
 - `vela recover --repo <root> <operation-id> --json`
 
 Every argv is assembled from closed enums and bounded validated values. The
@@ -137,7 +137,7 @@ separately from command failure, and offers only exact structured recovery.
    Control: all roots/effects come from signed Vela JSON parsed in Rust; request
    carries only closed user choices and expected preview identity.
 6. **Duplicate/post-commit Decision.** Receipt is lost after canonical commit.
-   Control: immediate Inbox/replay/show/why readback, no automatic retry, and
+   Control: immediate Inbox/replay/show readback, no automatic retry, and
    recovery only for an exact surfaced operation.
 7. **Signer or secret leakage.** Child inherits credentials or signer material.
    Control: cleared bounded environment; Vela uses its supported local OS and

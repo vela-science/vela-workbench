@@ -321,6 +321,7 @@ fn basic_verification(value: &Value) -> Result<VerificationFacetDto, PortError> 
         performer_identifier: None,
         provider: None,
         version: None,
+        method_metadata_status: "not_loaded_from_signed_show".into(),
         method_profile: String::new(),
         method_path: String::new(),
         environment_root: String::new(),
@@ -476,6 +477,19 @@ fn parse_decision_inbox_value(value: &Value) -> Result<DecisionInboxDto, PortErr
     })
 }
 
+fn verified_current_method(
+    repository: &Path,
+    method_path: &str,
+    expected_environment_root: &str,
+    expected_verifier: &str,
+) -> Option<VerificationMethodDto> {
+    super::git::require_tracked_clean_at_head(repository, method_path).ok()?;
+    let inspected = inspect_verification_method(repository, &repository.join(method_path)).ok()?;
+    (inspected.sha256 == expected_environment_root
+        && inspected.attested_by_actor_id.as_deref() == Some(expected_verifier))
+    .then_some(inspected)
+}
+
 fn detailed_verifications(
     repository: &Path,
     show: &Value,
@@ -497,8 +511,10 @@ fn detailed_verifications(
             let scope = object(record, "scope")?;
             let subject = object(record, "subject")?;
             let method_path = string(method, "implementation")?;
+            let environment_root = string(method, "environment_root")?;
+            let verifier = string(identity, "actor_id")?;
             let inspected =
-                inspect_verification_method(repository, &repository.join(method_path)).ok();
+                verified_current_method(repository, method_path, environment_root, verifier);
             let id = string(wrapper, "verification_record_id")?;
             let basic = entry
                 .verifications
@@ -507,7 +523,7 @@ fn detailed_verifications(
             Ok(VerificationFacetDto {
                 verification_record_id: id.into(),
                 verification_record_root: string(wrapper, "verification_record_root")?.into(),
-                verifier: string(identity, "actor_id")?.into(),
+                verifier: verifier.into(),
                 performer_kind: inspected
                     .as_ref()
                     .and_then(|item| item.reviewer_kind.clone())
@@ -517,9 +533,15 @@ fn detailed_verifications(
                     .and_then(|item| item.reviewer_identifier.clone()),
                 provider: inspected.as_ref().and_then(|item| item.provider.clone()),
                 version: inspected.as_ref().and_then(|item| item.version.clone()),
+                method_metadata_status: if inspected.is_some() {
+                    "verified_current"
+                } else {
+                    "unavailable_or_mismatched"
+                }
+                .into(),
                 method_profile: string(method, "profile")?.into(),
                 method_path: method_path.into(),
-                environment_root: string(method, "environment_root")?.into(),
+                environment_root: environment_root.into(),
                 property: string(scope, "property")?.into(),
                 outcome: string(record, "outcome")?.into(),
                 declared_independent_of: strings(independence, "declared_independent_of")?,
@@ -586,6 +608,44 @@ fn validate_draft(draft: &VerificationDraftDto) -> Result<(), PortError> {
         }
     }
     Ok(())
+}
+
+fn imported_outcome(record: &Value) -> Result<String, PortError> {
+    let outcome = string(record, "outcome")?;
+    if !matches!(outcome, "pass" | "fail" | "error" | "inconclusive") {
+        return Err(PortError::InvalidInput(
+            "Verification envelope outcome is not a supported closed value".into(),
+        ));
+    }
+    Ok(outcome.into())
+}
+
+fn current_import_subject<'a>(
+    inbox: &'a DecisionInboxDto,
+    proposal_id: &str,
+    proposal_root: &str,
+    submission_root: &str,
+    claim_id: &str,
+) -> Result<&'a DecisionEntryDto, PortError> {
+    let current = inbox
+        .entries
+        .iter()
+        .find(|entry| entry.proposal_id == proposal_id)
+        .ok_or_else(|| {
+            PortError::InvalidInput(
+                "Verification envelope Proposal is not current in the Decision Inbox".into(),
+            )
+        })?;
+    if current.proposal_root != proposal_root
+        || current.submission_root != submission_root
+        || current.claim_id != claim_id
+        || current.repository_root != inbox.repository_root
+    {
+        return Err(PortError::InvalidInput(
+            "Verification envelope subject does not match the exact current Proposal, Submission, Claim, and Repository roots".into(),
+        ));
+    }
+    Ok(current)
 }
 
 pub(crate) fn preview_verification_record(
@@ -777,6 +837,25 @@ pub(crate) fn preview_verification_import(
     let method = object(&record, "method")?;
     let scope = object(&record, "scope")?;
     let independence = object(&record, "independence")?;
+    let outcome = imported_outcome(&record)?;
+    let proposal_id = string(subject, "proposal_id")?.to_owned();
+    let proposal_root = string(subject, "proposal_root")?.to_owned();
+    let submission_root = string(subject, "submission_root")?.to_owned();
+    let claim_id = string(subject, "claim_id")?.to_owned();
+    let inbox = decision_inbox(repository, binary)?;
+    if let Some(refusal) = inbox.refusal {
+        return Err(PortError::Process(format!(
+            "Decision Inbox refused with {:?}: {}",
+            refusal.code, refusal.message
+        )));
+    }
+    current_import_subject(
+        &inbox,
+        &proposal_id,
+        &proposal_root,
+        &submission_root,
+        &claim_id,
+    )?;
     let root = digest(&bytes);
     let id = format!("vvr_{}", &root[7..23]);
     let actor = string(identity, "actor_id")?.to_owned();
@@ -792,9 +871,9 @@ pub(crate) fn preview_verification_import(
     ];
     Ok(VerificationImportPreviewDto {
         envelope_path: path.display().to_string(), envelope_sha256: root.clone(), envelope_size: bytes.len() as u64, envelope_base64: base64::engine::general_purpose::STANDARD.encode(&bytes), verification_record_id: id, verification_record_root: root, verifier: actor,
-        proposal_id: string(subject, "proposal_id")?.into(), proposal_root: string(subject, "proposal_root")?.into(), submission_id: string(subject, "submission_id")?.into(), submission_root: string(subject, "submission_root")?.into(), claim_id: string(subject, "claim_id")?.into(),
-        method_profile: string(method, "profile")?.into(), method_path: string(method, "implementation")?.into(), environment_root: string(method, "environment_root")?.into(), property: string(scope, "property")?.into(), outcome: string(&record, "outcome")?.into(), declared_independent_of: strings(independence, "declared_independent_of")?, shared_dependencies: strings(independence, "shared_dependencies")?, output_artifact_ids: strings(&record, "output_artifact_ids")?, does_not_establish: strings(scope, "does_not_establish")?,
-        repository_path: repository.display().to_string(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, argv, authority_effect: "none".into(), warning: "The signed Vela CLI verifies this exact envelope and current Proposal bindings. Import remains non-authoritative and changes no Standing.".into(),
+        proposal_id, proposal_root, submission_id: string(subject, "submission_id")?.into(), submission_root, claim_id,
+        method_profile: string(method, "profile")?.into(), method_path: string(method, "implementation")?.into(), environment_root: string(method, "environment_root")?.into(), property: string(scope, "property")?.into(), outcome, declared_independent_of: strings(independence, "declared_independent_of")?, shared_dependencies: strings(independence, "shared_dependencies")?, output_artifact_ids: strings(&record, "output_artifact_ids")?, does_not_establish: strings(scope, "does_not_establish")?,
+        repository_path: repository.display().to_string(), current_repository_root: inbox.repository_root, source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, argv, authority_effect: "none".into(), warning: "The envelope subject matches the exact current Proposal, Submission, Claim, and Repository roots. The signed Vela CLI verifies the signature again during import. Import remains non-authoritative and changes no Standing.".into(),
     })
 }
 
@@ -1147,6 +1226,36 @@ pub(crate) fn recover_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
+
+    fn git(root: &Path, args: &[&str]) {
+        let status = Command::new("/usr/bin/git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .expect("run fixture Git");
+        assert!(status.success(), "fixture Git failed: {args:?}");
+    }
+
+    fn method_bytes(provider: &str) -> Vec<u8> {
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schema": "vela.review-method.v1",
+            "profile": "exact-review",
+            "property": "formal-correctness",
+            "reviewer": {
+                "kind": "agent",
+                "display_name": "Fixture reviewer",
+                "identifier": "fixture-reviewer",
+                "provider": provider,
+                "version": "model-1"
+            },
+            "attested_by_actor_id": "agent:fixture",
+            "procedure": ["Check the exact retained evidence."],
+            "required_output": ["A bounded retained report."],
+            "does_not_establish": ["Repository acceptance."]
+        }))
+        .expect("serialize Method")
+    }
 
     #[test]
     fn decision_actor_and_root_are_closed() {
@@ -1171,6 +1280,87 @@ mod tests {
         let source = include_str!("tranche_three.rs");
         assert!(!source.contains(&["message", ".starts_with"].concat()));
         assert!(!source.contains(&["message", ".contains"].concat()));
+    }
+
+    #[test]
+    fn verification_import_refuses_untrusted_dialog_outcomes() {
+        for outcome in ["pass\nDigest: fake", "unknown", ""] {
+            let record = serde_json::json!({ "outcome": outcome });
+            assert!(imported_outcome(&record).is_err());
+        }
+        assert_eq!(
+            imported_outcome(&serde_json::json!({ "outcome": "inconclusive" })).unwrap(),
+            "inconclusive"
+        );
+    }
+
+    #[test]
+    fn verification_import_subject_must_match_current_inbox_roots() {
+        let value: Value = serde_json::from_str(include_str!(
+            "../../../fixtures/core/v0.977.1/decision-inbox-v3.json"
+        ))
+        .expect("frozen Inbox JSON");
+        let inbox = parse_decision_inbox_value(&value).expect("parse frozen Inbox");
+        let entry = &inbox.entries[0];
+        assert!(
+            current_import_subject(
+                &inbox,
+                &entry.proposal_id,
+                &entry.proposal_root,
+                &entry.submission_root,
+                &entry.claim_id,
+            )
+            .is_ok()
+        );
+        assert!(
+            current_import_subject(
+                &inbox,
+                &entry.proposal_id,
+                "sha256:stale",
+                &entry.submission_root,
+                &entry.claim_id,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn decision_facets_do_not_enrich_from_dirty_or_digest_mismatched_method() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        git(temp.path(), &["init", "-q"]);
+        git(temp.path(), &["config", "user.name", "Workbench test"]);
+        git(
+            temp.path(),
+            &["config", "user.email", "workbench@example.invalid"],
+        );
+        let method_path = temp.path().join("method.json");
+        std::fs::write(&method_path, method_bytes("provider-a")).expect("write Method");
+        git(temp.path(), &["add", "method.json"]);
+        git(temp.path(), &["commit", "-q", "-m", "fixture Method"]);
+
+        let signed_root = digest(&method_bytes("provider-a"));
+        let verified =
+            verified_current_method(temp.path(), "method.json", &signed_root, "agent:fixture")
+                .expect("tracked current Method should enrich");
+        assert_eq!(verified.provider.as_deref(), Some("provider-a"));
+
+        assert!(
+            verified_current_method(temp.path(), "method.json", &signed_root, "agent:other")
+                .is_none()
+        );
+
+        std::fs::write(&method_path, method_bytes("provider-b")).expect("dirty Method");
+        assert!(
+            verified_current_method(temp.path(), "method.json", &signed_root, "agent:fixture")
+                .is_none()
+        );
+
+        git(temp.path(), &["add", "method.json"]);
+        git(temp.path(), &["commit", "-q", "-m", "different Method"]);
+        assert!(
+            verified_current_method(temp.path(), "method.json", &signed_root, "agent:fixture")
+                .is_none()
+        );
     }
 
     #[test]

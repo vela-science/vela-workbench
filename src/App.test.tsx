@@ -71,8 +71,8 @@ import App from "./App";
 
 const verification = {
   verification_record_id: "vvr_review", verification_record_root: "sha256:verification",
-  verifier: "agent:reviewer-b", performer_kind: "agent", performer_identifier: "reviewer-b",
-  provider: "provider-a", version: "model-1", method_profile: "lean-proof-review",
+  verifier: "agent:reviewer-b", performer_kind: "agent", performer_identifier: null,
+  provider: null, version: null, method_metadata_status: "unavailable_or_mismatched", method_profile: "lean-proof-review",
   method_path: ".vela/methods/review.json", environment_root: "sha256:environment",
   property: "formal-correctness", outcome: "pass", declared_independent_of: [],
   shared_dependencies: ["same provider and source tree"], evidence_artifact_ids: ["var_input"],
@@ -213,6 +213,7 @@ describe("Vela Workbench Tranche 3", () => {
     await user.click(screen.getByRole("button", { name: "Review exact attributed Decision" }));
     expect(await screen.findByText(/Resolved by signed Vela during execution/)).toBeVisible();
     expect(screen.getByText(/same provider and source tree/)).toBeVisible();
+    expect(screen.getByText(/does not match the signed environment root/)).toBeVisible();
     expect(calls.executeDecision).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Execute after native confirmation" }));
     expect(await screen.findByText("Actual Decision / Event / Standing readback")).toBeVisible();

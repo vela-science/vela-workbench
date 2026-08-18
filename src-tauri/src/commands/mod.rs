@@ -141,6 +141,14 @@ fn dialog_value(value: &str) -> Result<String, CommandErrorDto> {
         .map_err(|error| CommandErrorDto::new("internal", format!("encode dialog value: {error}")))
 }
 
+fn decision_dialog_intent(
+    request: &DecisionRequestDto,
+) -> Result<(String, String), CommandErrorDto> {
+    let reason = dialog_value(&request.reason)?;
+    let session = dialog_value(request.session_ref.as_deref().unwrap_or("none"))?;
+    Ok((reason, session))
+}
+
 fn selected_repository(
     path: &str,
     state: &State<'_, AppState>,
@@ -1315,9 +1323,9 @@ pub(crate) async fn import_verification(
     let verifier = dialog_value(&preview.verifier)?;
     let proposal = dialog_value(&preview.proposal_id)?;
     let digest = dialog_value(&preview.envelope_sha256)?;
+    let outcome = dialog_value(&preview.outcome)?;
     let description = format!(
-        "Import one signed scoped Verification?\n\nVerifier: {verifier}\nProposal: {proposal}\nEnvelope: {digest}\nOutcome: {}\n\nAuthority effect: none. The signed Vela CLI verifies the exact signature and current bindings.",
-        preview.outcome
+        "Import one signed scoped Verification?\n\nVerifier: {verifier}\nProposal: {proposal}\nEnvelope: {digest}\nOutcome: {outcome}\n\nAuthority effect: none. The signed Vela CLI verifies the exact signature and current bindings."
     );
     let approved = tauri::async_runtime::spawn_blocking(move || {
         confirmed("Import scoped Verification", &description)
@@ -1392,8 +1400,9 @@ pub(crate) async fn execute_decision(
     let entry = dialog_value(&preview.entry.entry_root)?;
     let proposal = dialog_value(&preview.entry.proposal_id)?;
     let successor = dialog_value(&preview.expected_successor.repository_root)?;
+    let (reason, session) = decision_dialog_intent(&preview.request)?;
     let description = format!(
-        "Execute one attributed {:?} Decision?\n\nPerformer: {performer} ({})\nRepository authority principal: {}\nAuthentication: {}\nTransaction signer: {}\nProposal: {proposal}\nEntry root: {entry}\nExpected successor repository: {successor}\nVerification records: {}\n\nThis changes Repository scientific state if Vela authenticates, authorizes, and commits it. Do not retry after a post-commit receipt failure.",
+        "Execute one attributed {:?} Decision?\n\nPerformer: {performer} ({})\nRepository authority principal: {}\nAuthentication: {}\nTransaction signer: {}\nProposal: {proposal}\nEntry root: {entry}\nReason: {reason}\nSession reference: {session}\nExpected successor repository: {successor}\nVerification records: {}\n\nThis changes Repository scientific state if Vela authenticates, authorizes, and commits it. Do not retry after a post-commit receipt failure.",
         preview.request.action,
         preview.performer_kind,
         preview.repository_authority_principal,
@@ -1487,9 +1496,9 @@ pub(crate) async fn recover_transaction(
         ));
     }
     let operation = dialog_value(&preview.operation_id)?;
+    let repository_path = dialog_value(&preview.repository_path)?;
     let description = format!(
-        "Recover one exact Vela transaction?\n\nOperation: {operation}\nRepository: {}\n\nThis never retries or chooses a Decision. Vela applies only the exact signed recovery journal.",
-        preview.repository_path
+        "Recover one exact Vela transaction?\n\nOperation: {operation}\nRepository: {repository_path}\n\nThis never retries or chooses a Decision. Vela applies only the exact signed recovery journal."
     );
     let approved = tauri::async_runtime::spawn_blocking(move || {
         confirmed("Recover exact Vela transaction", &description)
@@ -1541,10 +1550,13 @@ mod tests {
 
     use sha2::{Digest, Sha256};
 
-    use super::{PrivilegedState, dialog_value, inspect_path, preflight_submission_draft};
+    use super::{
+        PrivilegedState, decision_dialog_intent, dialog_value, inspect_path,
+        preflight_submission_draft,
+    };
     use crate::contracts::{
-        NativeExecProfileDto, NativeExecResultDto, NativeExecStateDto, NativeOutputDto,
-        SubmissionDraftDto,
+        DecisionActionDto, DecisionRequestDto, NativeExecProfileDto, NativeExecResultDto,
+        NativeExecStateDto, NativeOutputDto, SubmissionDraftDto,
     };
 
     fn file_manifest(path: &Path, root: &Path, out: &mut BTreeMap<String, String>) {
@@ -1674,5 +1686,20 @@ mod tests {
         assert!(!encoded.contains('\n'));
         assert!(encoded.contains("\\n"));
         assert!(encoded.contains("\\u001b"));
+    }
+
+    #[test]
+    fn decision_dialog_includes_escaped_reason_and_session_intent() {
+        let request = DecisionRequestDto {
+            proposal_id: "vpr_fixture".into(),
+            entry_root: "sha256:fixture".into(),
+            action: DecisionActionDto::Reject,
+            reason: "bounded reason\nSigner: fake".into(),
+            performer: "agent:fixture".into(),
+            session_ref: Some("session\u{1b}fake".into()),
+        };
+        let (reason, session) = decision_dialog_intent(&request).expect("dialog values");
+        assert_eq!(reason, "\"bounded reason\\nSigner: fake\"");
+        assert_eq!(session, "\"session\\u001bfake\"");
     }
 }
