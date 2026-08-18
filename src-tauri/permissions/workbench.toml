@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "workbench-tranche-three"
-description = "Allows the bundled local main window to invoke only enumerated observation, reviewed execution, explicit evidence, Submission, scoped Verification, attributed Repository Decision, exact recovery, preference, and handoff commands."
+description = "Allows the bundled local main window to invoke only enumerated observation, reviewed execution, explicit evidence, Submission, scoped Verification, attributed Repository Decision, exact recovery, preference, handoff, and bounded OpenGauss pilot commands."
 commands.allow = [
   "bootstrap",
   "select_repository",
@@ -31,4 +31,7 @@ commands.allow = [
   "execute_decision",
   "preview_recovery",
   "recover_transaction",
+  "select_opengauss",
+  "launch_opengauss_handoff",
+  "refresh_opengauss_handoff",
 ]

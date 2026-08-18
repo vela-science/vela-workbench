@@ -38,6 +38,9 @@ pub fn run() {
             commands::execute_decision,
             commands::preview_recovery,
             commands::recover_transaction,
+            commands::select_opengauss,
+            commands::launch_opengauss_handoff,
+            commands::refresh_opengauss_handoff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

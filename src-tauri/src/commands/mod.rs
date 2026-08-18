@@ -17,11 +17,13 @@ use crate::{
         DecisionPreviewDto, DecisionRequestDto, EvidenceExportPreviewDto, EvidenceExportRequestDto,
         EvidenceExportResultDto, EvidenceItemDto, EvidenceSourceDto, GitSnapshotDto, LaunchKindDto,
         LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto, NativeExecResultDto,
-        NativeToolDto, PreferencesDto, RecoveryPreviewDto, RecoveryResultDto,
-        RepositorySnapshotDto, RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto,
-        SubmissionPreviewDto, SubmissionResultDto, VelaBinaryDto, VelaInspectionDto,
-        VerificationDraftDto, VerificationImportPreviewDto, VerificationMethodDto,
-        VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto, WorktreeResultDto,
+        NativeToolDto, OpenGaussHandoffPreviewDto, OpenGaussHandoffReceiptDto,
+        OpenGaussSelectedCheckDto, OpenGaussSelectedEvidenceDto, PreferencesDto,
+        RecoveryPreviewDto, RecoveryResultDto, RepositorySnapshotDto, RuntimePolicyDto,
+        SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto,
+        VelaBinaryDto, VelaInspectionDto, VerificationDraftDto, VerificationImportPreviewDto,
+        VerificationMethodDto, VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto,
+        WorktreeResultDto,
     },
     ports::{self, PortError},
     preferences::PreferencesStore,
@@ -39,6 +41,8 @@ struct PrivilegedState {
     completed_runs: BTreeMap<String, NativeExecResultDto>,
     evidence: BTreeMap<String, ports::evidence::CapturedEvidence>,
     recovery_operations: BTreeMap<String, String>,
+    selected_opengauss: Option<OpenGaussHandoffPreviewDto>,
+    opengauss_receipt: Option<OpenGaussHandoffReceiptDto>,
 }
 
 impl PrivilegedState {
@@ -381,6 +385,301 @@ pub(crate) async fn launch_repository(
         .await
         .map_err(|error| CommandErrorDto::new("internal", format!("launch task failed: {error}")))?
         .map_err(Into::into)
+}
+
+fn environment_dialog(entries: &[(String, String)]) -> Result<String, CommandErrorDto> {
+    entries
+        .iter()
+        .map(|(name, value)| Ok(format!("{name}={}", dialog_value(value)?)))
+        .collect::<Result<Vec<_>, _>>()
+        .map(|values| values.join("\n"))
+}
+
+#[tauri::command]
+pub(crate) async fn select_opengauss(
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<Option<OpenGaussHandoffPreviewDto>, CommandErrorDto> {
+    let (canonical, _) = selected_repository(&path, &state)?;
+    {
+        let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+        privileged.selected_opengauss = None;
+        privileged.opengauss_receipt = None;
+    }
+    let selected = tauri::async_runtime::spawn_blocking(|| {
+        FileDialog::new()
+            .set_title("Choose the exact OpenGauss executable named gauss")
+            .pick_file()
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("OpenGauss dialog failed: {error}")))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let candidate = tauri::async_runtime::spawn_blocking(move || {
+        ports::opengauss::inspect_candidate(&selected)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new(
+            "internal",
+            format!("OpenGauss identity task failed: {error}"),
+        )
+    })??;
+    let candidate_path = dialog_value(&candidate.path.display().to_string())?;
+    let candidate_sha = dialog_value(&candidate.sha256)?;
+    let cwd = dialog_value(&canonical.display().to_string())?;
+    let environment = ports::environment_summary(candidate.path.parent());
+    let environment = environment_dialog(&environment)?;
+    let description = format!(
+        "Run one fixed OpenGauss version probe?\n\nExecutable: {candidate_path}\nSHA-256: {candidate_sha}\nSize: {} bytes\nFixed argv: [\"--version\"]\nWorking directory: {cwd}\nCleared and bounded probe environment:\n{environment}\nTimeout: 20000 ms\nMaximum stdout: 262144 bytes\nMaximum stderr: 131072 bytes\n\n{}",
+        candidate.size,
+        ports::opengauss::TRUST_WARNING,
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Inspect selected OpenGauss executable", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let preview = tauri::async_runtime::spawn_blocking(move || {
+        let git = ports::git::inspect(&canonical)?;
+        ports::opengauss::preview(&canonical, &git, &candidate)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("OpenGauss inspection failed: {error}"))
+    })??;
+    state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .selected_opengauss = Some(preview.clone());
+    Ok(Some(preview))
+}
+
+#[tauri::command]
+pub(crate) async fn launch_opengauss_handoff(
+    preview: OpenGaussHandoffPreviewDto,
+    state: State<'_, AppState>,
+) -> Result<Option<OpenGaussHandoffReceiptDto>, CommandErrorDto> {
+    let (canonical, _) = selected_repository(&preview.repository_path, &state)?;
+    let selected = state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .selected_opengauss
+        .clone()
+        .ok_or_else(|| {
+            CommandErrorDto::new("stale", "OpenGauss selection expired; select it again")
+        })?;
+    if selected != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "OpenGauss handoff differs from the exact host-owned preview",
+        ));
+    }
+    let checked = preview.clone();
+    tauri::async_runtime::spawn_blocking(move || ports::opengauss::validate_static(&checked))
+        .await
+        .map_err(|error| {
+            CommandErrorDto::new("internal", format!("OpenGauss validation failed: {error}"))
+        })??;
+    let tool = dialog_value(&preview.tool.path)?;
+    let version = dialog_value(&preview.tool.version)?;
+    let sha = dialog_value(&preview.tool.sha256)?;
+    let manifest = dialog_value(&preview.project.manifest_path)?;
+    let manifest_sha = dialog_value(&preview.project.manifest_sha256)?;
+    let cwd = dialog_value(&preview.cwd)?;
+    let backend = dialog_value(&preview.backend_identity)?;
+    let description = format!(
+        "Open Terminal for an explicit interactive OpenGauss handoff?\n\nExecutable: {tool}\nVersion: {version}\nSHA-256: {sha}\nProject config: {manifest}\nConfig SHA-256: {manifest_sha}\nWorking directory: {cwd}\nInteractive argv boundary: [{tool}]\nBackend/tool identity: {backend}\n\nWorkbench will re-run only the fixed --version probe, then open Terminal at the project root. It will not start OpenGauss, type a slash command, observe hidden model transport, or ingest OpenGauss state. The interactive shell environment is owned by Terminal and is not observed or constrained by Workbench.\n\n{}",
+        preview.tool.trust_warning,
+    );
+    let approved = tauri::async_runtime::spawn_blocking(move || {
+        confirmed("Open external OpenGauss work surface", &description)
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("dialog", format!("confirmation failed: {error}")))?;
+    if !approved {
+        return Ok(None);
+    }
+    let expected = preview.clone();
+    let validated = tauri::async_runtime::spawn_blocking(move || {
+        ports::opengauss::revalidate_preview(&expected)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new(
+            "internal",
+            format!("OpenGauss revalidation failed: {error}"),
+        )
+    })??;
+    if validated != preview {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "OpenGauss tool, project, or Repository changed after confirmation",
+        ));
+    }
+    {
+        let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+        if privileged.selected_opengauss.as_ref() != Some(&preview) {
+            return Err(CommandErrorDto::new("stale", "OpenGauss selection expired"));
+        }
+        privileged.selected_opengauss = None;
+    }
+    let launch = tauri::async_runtime::spawn_blocking(move || {
+        ports::launch::launch(&canonical, LaunchKindDto::Terminal)
+    })
+    .await
+    .map_err(|error| {
+        CommandErrorDto::new("internal", format!("Terminal handoff failed: {error}"))
+    })??;
+    let receipt = ports::opengauss::launched_receipt(preview, launch.owner);
+    state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .opengauss_receipt = Some(receipt.clone());
+    Ok(Some(receipt))
+}
+
+fn opengauss_evidence(item: &EvidenceItemDto) -> OpenGaussSelectedEvidenceDto {
+    let source = match &item.source {
+        EvidenceSourceDto::LocalFile {
+            repository_relative_path,
+            ..
+        } => repository_relative_path.clone(),
+        EvidenceSourceDto::CommandOutput { run_id, stream } => format!("{run_id}:{stream}"),
+    };
+    OpenGaussSelectedEvidenceDto {
+        display_name: item.display_name.clone(),
+        sha256: item.sha256.clone(),
+        size: item.size,
+        media_type: item.media_type.clone(),
+        kind_hint: item.kind_hint.clone(),
+        source_commit: item.source_commit.clone(),
+        source_tree: item.source_tree.clone(),
+        source,
+    }
+}
+
+fn opengauss_check(result: &NativeExecResultDto) -> OpenGaussSelectedCheckDto {
+    OpenGaussSelectedCheckDto {
+        run_id: result.run_id.clone(),
+        profile: result.profile,
+        state: result.state.clone(),
+        exit_code: result.exit_code,
+        source_commit: result.source_commit.clone(),
+        source_tree: result.source_tree.clone(),
+        executable_sha256: result.executable_sha256.clone(),
+        stdout_sha256: result.stdout.sha256.clone(),
+        stderr_sha256: result.stderr.sha256.clone(),
+        producer_check_method: result.producer_check_method.clone(),
+        producer_check_outcome: result.producer_check_outcome.clone(),
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn refresh_opengauss_handoff(
+    receipt: OpenGaussHandoffReceiptDto,
+    evidence_sources: Vec<EvidenceSourceDto>,
+    check_run_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<OpenGaussHandoffReceiptDto, CommandErrorDto> {
+    if evidence_sources.len() > 16 || check_run_ids.len() > 4 {
+        return Err(CommandErrorDto::new(
+            "invalid_input",
+            "OpenGauss receipt accepts at most 16 explicit evidence items and 4 checks",
+        ));
+    }
+    let mut evidence_keys = evidence_sources
+        .iter()
+        .map(evidence_key)
+        .collect::<Vec<_>>();
+    evidence_keys.sort();
+    if evidence_keys.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(CommandErrorDto::new(
+            "invalid_input",
+            "duplicate evidence selection",
+        ));
+    }
+    for run_id in &check_run_ids {
+        validate_run_id(run_id)?;
+    }
+    let mut unique_runs = check_run_ids.clone();
+    unique_runs.sort();
+    if unique_runs.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(CommandErrorDto::new(
+            "invalid_input",
+            "duplicate check selection",
+        ));
+    }
+    let (canonical, _) = selected_repository(&receipt.preview.repository_path, &state)?;
+    if state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .opengauss_receipt
+        .as_ref()
+        != Some(&receipt)
+    {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "OpenGauss receipt is not the exact current host-owned handoff",
+        ));
+    }
+    let baseline = receipt.clone();
+    let mut refreshed =
+        tauri::async_runtime::spawn_blocking(move || ports::opengauss::refresh_receipt(&baseline))
+            .await
+            .map_err(|error| {
+                CommandErrorDto::new("internal", format!("OpenGauss refresh failed: {error}"))
+            })??;
+    let selected_evidence = evidence_sources
+        .iter()
+        .map(|source| {
+            resolve_evidence(&canonical, source, &state).map(|item| opengauss_evidence(&item.dto))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let selected_checks = {
+        let privileged = state.privileged.lock().map_err(|_| state_error())?;
+        check_run_ids
+            .iter()
+            .map(|run_id| {
+                privileged
+                    .completed_runs
+                    .get(run_id)
+                    .map(opengauss_check)
+                    .ok_or_else(|| {
+                        CommandErrorDto::new(
+                            "run_not_available",
+                            format!("completed check {run_id} is no longer in bounded memory"),
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    let confirmed_git = ports::git::inspect(&canonical).map_err(CommandErrorDto::from)?;
+    if refreshed.git_after.as_ref() != Some(&ports::opengauss::git_identity(&confirmed_git)) {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Repository changed while binding selected OpenGauss result evidence",
+        ));
+    }
+    refreshed.selected_evidence = selected_evidence;
+    refreshed.selected_checks = selected_checks;
+    let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+    if privileged.opengauss_receipt.as_ref() != Some(&receipt) {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "OpenGauss receipt expired during refresh",
+        ));
+    }
+    privileged.opengauss_receipt = Some(refreshed.clone());
+    Ok(refreshed)
 }
 
 #[tauri::command]

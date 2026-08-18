@@ -42,6 +42,20 @@ export type LaunchKindDto = "terminal" | "cursor" | "visual_studio_code" | "forg
 
 export type LaunchResultDto = { target: string, owner: string, };
 
+export type OpenGaussToolDto = { path: string, version: string, sha256: string, size: number, probe_argv: Array<string>, probe_environment: Array<EnvironmentEntryDto>, trust_warning: string, };
+
+export type OpenGaussProjectDto = { manifest_path: string, manifest_sha256: string, manifest_size: number, schema_version: number, name: string, kind: string, project_root: string, lean_root: string, source_mode: string, template_source_declared: boolean, blueprint_markers: Array<string>, configured_paths_validated: boolean, };
+
+export type OpenGaussGitIdentityDto = { branch: string | null, commit: string, tree: string, dirty: boolean, changed_paths: number, };
+
+export type OpenGaussHandoffPreviewDto = { repository_path: string, tool: OpenGaussToolDto, project: OpenGaussProjectDto, git_before: OpenGaussGitIdentityDto, cwd: string, interactive_argv: Array<string>, terminal_environment: Array<EnvironmentEntryDto>, documented_workflows: Array<string>, documented_entrypoint: string, backend_identity: string, hidden_transport_visible: boolean, upstream_source_commit: string, upstream_source_tree: string, authority_effect: string, boundary: string, };
+
+export type OpenGaussSelectedEvidenceDto = { display_name: string, sha256: string, size: number, media_type: string, kind_hint: string, source_commit: string, source_tree: string, source: string, };
+
+export type OpenGaussSelectedCheckDto = { run_id: string, profile: NativeExecProfileDto, state: NativeExecStateDto, exit_code: number | null, source_commit: string, source_tree: string, executable_sha256: string, stdout_sha256: string, stderr_sha256: string, producer_check_method: string, producer_check_outcome: string, };
+
+export type OpenGaussHandoffReceiptDto = { preview: OpenGaussHandoffPreviewDto, terminal_owner: string, launched_at_unix_ms: number, git_after: OpenGaussGitIdentityDto | null, selected_evidence: Array<OpenGaussSelectedEvidenceDto>, selected_checks: Array<OpenGaussSelectedCheckDto>, result_boundary: string, };
+
 export type WorktreePreviewDto = { repository_path: string, source_head: string, source_tree: string, target_ref: string, target_commit: string, destination: string, command: Array<string>, rollback: Array<string>, warning: string, };
 
 export type WorktreeResultDto = { destination: string, target_commit: string, rollback: Array<string>, repository: RepositorySnapshotDto, };

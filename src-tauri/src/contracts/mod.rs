@@ -223,6 +223,99 @@ pub struct LaunchResultDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussToolDto {
+    pub path: String,
+    pub version: String,
+    pub sha256: String,
+    pub size: u64,
+    pub probe_argv: Vec<String>,
+    pub probe_environment: Vec<EnvironmentEntryDto>,
+    pub trust_warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussProjectDto {
+    pub manifest_path: String,
+    pub manifest_sha256: String,
+    pub manifest_size: u64,
+    pub schema_version: u64,
+    pub name: String,
+    pub kind: String,
+    pub project_root: String,
+    pub lean_root: String,
+    pub source_mode: String,
+    pub template_source_declared: bool,
+    pub blueprint_markers: Vec<String>,
+    pub configured_paths_validated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussGitIdentityDto {
+    pub branch: Option<String>,
+    pub commit: String,
+    pub tree: String,
+    pub dirty: bool,
+    pub changed_paths: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussHandoffPreviewDto {
+    pub repository_path: String,
+    pub tool: OpenGaussToolDto,
+    pub project: OpenGaussProjectDto,
+    pub git_before: OpenGaussGitIdentityDto,
+    pub cwd: String,
+    pub interactive_argv: Vec<String>,
+    pub terminal_environment: Vec<EnvironmentEntryDto>,
+    pub documented_workflows: Vec<String>,
+    pub documented_entrypoint: String,
+    pub backend_identity: String,
+    pub hidden_transport_visible: bool,
+    pub upstream_source_commit: String,
+    pub upstream_source_tree: String,
+    pub authority_effect: String,
+    pub boundary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussSelectedEvidenceDto {
+    pub display_name: String,
+    pub sha256: String,
+    pub size: u64,
+    pub media_type: String,
+    pub kind_hint: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussSelectedCheckDto {
+    pub run_id: String,
+    pub profile: NativeExecProfileDto,
+    pub state: NativeExecStateDto,
+    pub exit_code: Option<i32>,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub executable_sha256: String,
+    pub stdout_sha256: String,
+    pub stderr_sha256: String,
+    pub producer_check_method: String,
+    pub producer_check_outcome: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct OpenGaussHandoffReceiptDto {
+    pub preview: OpenGaussHandoffPreviewDto,
+    pub terminal_owner: String,
+    pub launched_at_unix_ms: u64,
+    pub git_after: Option<OpenGaussGitIdentityDto>,
+    pub selected_evidence: Vec<OpenGaussSelectedEvidenceDto>,
+    pub selected_checks: Vec<OpenGaussSelectedCheckDto>,
+    pub result_boundary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 pub struct WorktreePreviewDto {
     pub repository_path: String,
     pub source_head: String,
@@ -803,6 +896,13 @@ pub fn typescript_bindings() -> String {
         RepositorySnapshotDto::decl(&config),
         LaunchKindDto::decl(&config),
         LaunchResultDto::decl(&config),
+        OpenGaussToolDto::decl(&config),
+        OpenGaussProjectDto::decl(&config),
+        OpenGaussGitIdentityDto::decl(&config),
+        OpenGaussHandoffPreviewDto::decl(&config),
+        OpenGaussSelectedEvidenceDto::decl(&config),
+        OpenGaussSelectedCheckDto::decl(&config),
+        OpenGaussHandoffReceiptDto::decl(&config),
         WorktreePreviewDto::decl(&config),
         WorktreeResultDto::decl(&config),
         NativeExecProfileDto::decl(&config),
@@ -885,6 +985,9 @@ mod tests {
             "execute_decision",
             "preview_recovery",
             "recover_transaction",
+            "select_opengauss",
+            "launch_opengauss_handoff",
+            "refresh_opengauss_handoff",
         ] {
             assert!(permission.contains(required), "missing {required}");
         }
@@ -893,7 +996,7 @@ mod tests {
                 .lines()
                 .filter(|line| line.trim_start().starts_with('"'))
                 .count(),
-            29
+            32
         );
     }
 }

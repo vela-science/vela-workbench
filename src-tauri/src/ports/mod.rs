@@ -3,6 +3,7 @@ pub(crate) mod evidence;
 pub(crate) mod git;
 pub(crate) mod launch;
 pub(crate) mod native_exec;
+pub(crate) mod opengauss;
 mod process;
 pub(crate) mod tranche_three;
 pub(crate) mod vela;
