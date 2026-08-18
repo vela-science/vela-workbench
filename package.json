@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "contracts": "cargo run --manifest-path src-tauri/Cargo.toml --locked --bin export-bindings",
+    "contracts": "cargo run --manifest-path src-tauri/Cargo.toml --locked --features contract-export --bin export-bindings",
     "check": "bun run contracts && cargo test --manifest-path src-tauri/Cargo.toml --locked && bun run test && bun run build",
     "preview": "vite preview",
     "tauri": "tauri"
