@@ -395,6 +395,16 @@ fn environment_dialog(entries: &[(String, String)]) -> Result<String, CommandErr
         .map(|values| values.join("\n"))
 }
 
+fn dto_environment_dialog(
+    entries: &[crate::contracts::EnvironmentEntryDto],
+) -> Result<String, CommandErrorDto> {
+    entries
+        .iter()
+        .map(|entry| Ok(format!("{}={}", entry.name, dialog_value(&entry.value)?)))
+        .collect::<Result<Vec<_>, _>>()
+        .map(|values| values.join("\n"))
+}
+
 #[tauri::command]
 pub(crate) async fn select_opengauss(
     path: String,
@@ -494,8 +504,9 @@ pub(crate) async fn launch_opengauss_handoff(
     let manifest_sha = dialog_value(&preview.project.manifest_sha256)?;
     let cwd = dialog_value(&preview.cwd)?;
     let backend = dialog_value(&preview.backend_identity)?;
+    let launcher_environment = dto_environment_dialog(&preview.launcher_environment)?;
     let description = format!(
-        "Open Terminal for an explicit interactive OpenGauss handoff?\n\nExecutable: {tool}\nVersion: {version}\nSHA-256: {sha}\nProject config: {manifest}\nConfig SHA-256: {manifest_sha}\nWorking directory: {cwd}\nInteractive argv boundary: [{tool}]\nBackend/tool identity: {backend}\n\nWorkbench will re-run only the fixed --version probe, then open Terminal at the project root. It will not start OpenGauss, type a slash command, observe hidden model transport, or ingest OpenGauss state. The interactive shell environment is owned by Terminal and is not observed or constrained by Workbench.\n\n{}",
+        "Open Terminal for an explicit interactive OpenGauss handoff?\n\nExecutable: {tool}\nVersion: {version}\nSHA-256: {sha}\nProject config: {manifest}\nConfig SHA-256: {manifest_sha}\nWorking directory: {cwd}\nInteractive argv boundary: [{tool}]\nBackend/tool identity: {backend}\nExact launcher: /usr/bin/open -a Terminal {cwd}\nCleared bounded launcher environment:\n{launcher_environment}\n\nWorkbench will re-run only the fixed --version probe, then open Terminal at the project root. It will not start OpenGauss, type a slash command, observe hidden model transport, or ingest OpenGauss state. The interactive shell environment is owned by Terminal and is not observed or constrained by Workbench.\n\n{}",
         preview.tool.trust_warning,
     );
     let approved = tauri::async_runtime::spawn_blocking(move || {

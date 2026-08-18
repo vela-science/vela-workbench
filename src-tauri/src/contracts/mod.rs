@@ -266,7 +266,7 @@ pub struct OpenGaussHandoffPreviewDto {
     pub git_before: OpenGaussGitIdentityDto,
     pub cwd: String,
     pub interactive_argv: Vec<String>,
-    pub terminal_environment: Vec<EnvironmentEntryDto>,
+    pub launcher_environment: Vec<EnvironmentEntryDto>,
     pub documented_workflows: Vec<String>,
     pub documented_entrypoint: String,
     pub backend_identity: String,

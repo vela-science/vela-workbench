@@ -472,7 +472,7 @@ pub(crate) fn preview(
         git_before: git_identity(&current_git),
         cwd: canonical_repository.display().to_string(),
         interactive_argv: vec![candidate.path.display().to_string()],
-        terminal_environment: environment(None),
+        launcher_environment: environment(None),
         documented_workflows: [
             "/prove",
             "/draft",
