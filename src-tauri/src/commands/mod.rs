@@ -43,6 +43,7 @@ struct PrivilegedState {
     recovery_operations: BTreeMap<String, String>,
     selected_opengauss: Option<OpenGaussHandoffPreviewDto>,
     opengauss_receipt: Option<OpenGaussHandoffReceiptDto>,
+    opengauss_generation: u64,
 }
 
 impl PrivilegedState {
@@ -50,7 +51,16 @@ impl PrivilegedState {
         if let Some((_, cancellation)) = &self.active_run {
             cancellation.store(true, Ordering::SeqCst);
         }
+        let opengauss_generation = self.opengauss_generation.wrapping_add(1);
         *self = Self::default();
+        self.opengauss_generation = opengauss_generation;
+    }
+
+    fn begin_opengauss_selection(&mut self) -> u64 {
+        self.opengauss_generation = self.opengauss_generation.wrapping_add(1);
+        self.selected_opengauss = None;
+        self.opengauss_receipt = None;
+        self.opengauss_generation
     }
 
     fn remember_run(&mut self, result: NativeExecResultDto) {
@@ -411,11 +421,11 @@ pub(crate) async fn select_opengauss(
     state: State<'_, AppState>,
 ) -> Result<Option<OpenGaussHandoffPreviewDto>, CommandErrorDto> {
     let (canonical, _) = selected_repository(&path, &state)?;
-    {
-        let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
-        privileged.selected_opengauss = None;
-        privileged.opengauss_receipt = None;
-    }
+    let selection_generation = state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .begin_opengauss_selection();
     let selected = tauri::async_runtime::spawn_blocking(|| {
         FileDialog::new()
             .set_title("Choose the exact OpenGauss executable named gauss")
@@ -462,11 +472,14 @@ pub(crate) async fn select_opengauss(
     .map_err(|error| {
         CommandErrorDto::new("internal", format!("OpenGauss inspection failed: {error}"))
     })??;
-    state
-        .privileged
-        .lock()
-        .map_err(|_| state_error())?
-        .selected_opengauss = Some(preview.clone());
+    let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+    if privileged.opengauss_generation != selection_generation {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "OpenGauss selection was cleared or replaced during inspection",
+        ));
+    }
+    privileged.selected_opengauss = Some(preview.clone());
     Ok(Some(preview))
 }
 
@@ -476,15 +489,15 @@ pub(crate) async fn launch_opengauss_handoff(
     state: State<'_, AppState>,
 ) -> Result<Option<OpenGaussHandoffReceiptDto>, CommandErrorDto> {
     let (canonical, _) = selected_repository(&preview.repository_path, &state)?;
-    let selected = state
-        .privileged
-        .lock()
-        .map_err(|_| state_error())?
-        .selected_opengauss
-        .clone()
-        .ok_or_else(|| {
-            CommandErrorDto::new("stale", "OpenGauss selection expired; select it again")
-        })?;
+    let (selected, selection_generation) = {
+        let privileged = state.privileged.lock().map_err(|_| state_error())?;
+        (
+            privileged.selected_opengauss.clone().ok_or_else(|| {
+                CommandErrorDto::new("stale", "OpenGauss selection expired; select it again")
+            })?,
+            privileged.opengauss_generation,
+        )
+    };
     if selected != preview {
         return Err(CommandErrorDto::new(
             "stale",
@@ -536,7 +549,9 @@ pub(crate) async fn launch_opengauss_handoff(
     }
     {
         let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
-        if privileged.selected_opengauss.as_ref() != Some(&preview) {
+        if privileged.opengauss_generation != selection_generation
+            || privileged.selected_opengauss.as_ref() != Some(&preview)
+        {
             return Err(CommandErrorDto::new("stale", "OpenGauss selection expired"));
         }
         privileged.selected_opengauss = None;
@@ -549,11 +564,10 @@ pub(crate) async fn launch_opengauss_handoff(
         CommandErrorDto::new("internal", format!("Terminal handoff failed: {error}"))
     })??;
     let receipt = ports::opengauss::launched_receipt(preview, launch.owner);
-    state
-        .privileged
-        .lock()
-        .map_err(|_| state_error())?
-        .opengauss_receipt = Some(receipt.clone());
+    let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+    if privileged.opengauss_generation == selection_generation {
+        privileged.opengauss_receipt = Some(receipt.clone());
+    }
     Ok(Some(receipt))
 }
 
@@ -1935,10 +1949,14 @@ mod tests {
     #[test]
     fn clear_during_run_cannot_repopulate_completed_output() {
         let mut state = PrivilegedState::default();
+        let first_open_gauss_generation = state.begin_opengauss_selection();
         let cancellation = Arc::new(AtomicBool::new(false));
         state.active_run = Some(("run-clear-race".into(), Arc::clone(&cancellation)));
         state.clear();
         assert!(cancellation.load(Ordering::SeqCst));
+        assert_ne!(state.opengauss_generation, first_open_gauss_generation);
+        assert!(state.selected_opengauss.is_none());
+        assert!(state.opengauss_receipt.is_none());
         let output = NativeOutputDto {
             stream: "stdout".into(),
             sha256: format!("sha256:{}", "0".repeat(64)),
