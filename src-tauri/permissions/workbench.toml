@@ -1,6 +1,6 @@
 [[permission]]
-identifier = "workbench-tranche-one"
-description = "Allows the bundled local main window to invoke only the six enumerated Tranche 1 observation, preference, and explicit-handoff commands."
+identifier = "workbench-tranche-two"
+description = "Allows the bundled local main window to invoke only enumerated Tranche 2 observation, reviewed execution, explicit evidence, detached-worktree, Submission-intake, preference, and handoff commands."
 commands.allow = [
   "bootstrap",
   "select_repository",
@@ -8,4 +8,17 @@ commands.allow = [
   "select_vela_binary",
   "clear_recents",
   "launch_repository",
+  "preview_worktree",
+  "create_worktree",
+  "select_native_tool",
+  "preview_native_exec",
+  "run_native_exec",
+  "cancel_native_exec",
+  "select_evidence_file",
+  "preview_evidence_export",
+  "export_evidence",
+  "preview_submission_draft",
+  "submit_submission_draft",
+  "select_submission_import",
+  "import_submission",
 ]

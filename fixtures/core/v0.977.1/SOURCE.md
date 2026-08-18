@@ -23,7 +23,7 @@ Signed distribution evidence:
 
 Both detached manifest signatures verified under namespace `vela-release` as `release@vela.space`, Ed25519 fingerprint `SHA256:MX3Eo1o9S5pLnx2kiNyAy2aME7PAWDtvqtUBljJst1M`. This is the distribution identity, not Repository authority.
 
-The three schema files and `decision-inbox-v3.json` are copied byte-for-byte from the release Git object. The two frozen release bundle manifests are copied byte-for-byte from the immutable GitHub release. The Math and lean-proofs command fixtures were generated directly with the verified macOS arm64 v0.977.1 binary:
+The four schema files, `decision-inbox-v3.json`, signed `submission-bundle/submission.json`, and its content-addressed artifact are copied byte-for-byte from the release Git object. The signed envelope remains only a frozen parser/CLI-interface fixture; its signature does not grant Repository authority. The two frozen release bundle manifests are copied byte-for-byte from the immutable GitHub release. The Math and lean-proofs command fixtures were generated directly with the verified macOS arm64 v0.977.1 binary:
 
 - Math checkout: `/Users/williamblair/personal/math`, commit `508b39adac51e6823ea0d666e789a1e016b20227`
 - lean-proofs checkout: `/Users/williamblair/personal/lean-proofs`, commit `06d1322e62aa28b860da1ec66465d913c1902c78`; its integration manifest declares revision `a8c2872a27cf8d11cf6744ca4a2c5b49ace5fea0`

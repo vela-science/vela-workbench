@@ -6,14 +6,17 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 
 use crate::contracts::{
     ClaimDto, ClaimsV1Wire, ErrorEnvelopeWire, IntegrationCheckV1Wire, IntegrationDto,
-    IntegrationInspectionV1Wire, IntegrationItemDto, RefusalDto, RepositoryClassificationDto,
-    StatusCountsDto, StatusV4Wire, VelaBinaryDto, VelaBinaryStateDto, VelaInspectionDto,
-    VelaStatusDto,
+    IntegrationInspectionV1Wire, IntegrationItemDto, PublicationWire, RefusalDto,
+    RepositoryClassificationDto, StatusCountsDto, StatusV4Wire, SubmissionArtifactDraftDto,
+    SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto,
+    SubmitResultV1Wire, VelaBinaryDto, VelaBinaryStateDto, VelaInspectionDto, VelaStatusDto,
 };
 
 use super::{
@@ -555,17 +558,547 @@ pub(crate) fn inspect_repository(
     }
 }
 
+const SUBMISSION_AUTHORITY_BOUNDARY: &str = "This producer-authenticated Submission creates a pending Proposal only. Repository authority is separate; no Verification, Decision, Event, Standing, or acceptance action is available here.";
+
+fn bounded_text(value: &str, label: &str) -> Result<String, PortError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.len() > 16_384 || trimmed.chars().any(|value| value == '\0') {
+        return Err(PortError::InvalidInput(format!(
+            "{label} must be non-empty, trimmed, and at most 16384 bytes"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_digest(value: &str, label: &str) -> Result<(), PortError> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(PortError::InvalidInput(format!(
+            "{label} must be a full sha256 digest"
+        )));
+    };
+    if hex.len() != 64
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(PortError::InvalidInput(format!(
+            "{label} must be a lowercase full sha256 digest"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_relative_artifact(path: &str) -> Result<(), PortError> {
+    let path = Path::new(path);
+    if path.is_absolute()
+        || path.as_os_str().is_empty()
+        || !path
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(PortError::InvalidInput(
+            "Submission Artifact paths must be normalized repository-relative files".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn read_submission_artifact(
+    repository: &Path,
+    path: &str,
+    expected_digest: &str,
+) -> Result<(u64, String), PortError> {
+    validate_relative_artifact(path)?;
+    validate_digest(expected_digest, "Artifact digest")?;
+    let source = repository.join(path);
+    let metadata = std::fs::symlink_metadata(&source).map_err(|error| {
+        PortError::InvalidInput(format!("inspect Submission Artifact {path}: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(PortError::InvalidInput(format!(
+            "Submission Artifact {path} must be a regular non-symlink file"
+        )));
+    }
+    if metadata.len() > super::evidence::MAX_EVIDENCE_BYTES {
+        return Err(PortError::Unsupported(format!(
+            "Submission Artifact {path} exceeds the Workbench exact-display limit"
+        )));
+    }
+    let observed = format!("sha256:{}", sha256(&source)?);
+    if observed != expected_digest {
+        return Err(PortError::Unsupported(format!(
+            "Submission Artifact {path} changed after capture"
+        )));
+    }
+    Ok((metadata.len(), observed))
+}
+
+fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, PortError> {
+    bounded_text(&draft.assertion, "Claim assertion")?;
+    if !matches!(
+        draft.claim_type.as_str(),
+        "computational" | "theoretical" | "empirical" | "negative" | "contradiction"
+    ) {
+        return Err(PortError::InvalidInput("unsupported Claim type".into()));
+    }
+    if !matches!(
+        draft.replayability.as_str(),
+        "exact" | "bounded" | "approximate" | "unavailable" | "unknown"
+    ) {
+        return Err(PortError::InvalidInput("unsupported replayability".into()));
+    }
+    if draft.artifacts.is_empty() || draft.artifacts.len() > 32 {
+        return Err(PortError::InvalidInput(
+            "Submission draft must bind between 1 and 32 explicit Artifacts".into(),
+        ));
+    }
+    if draft.caveats.is_empty() || draft.caveats.len() > 32 {
+        return Err(PortError::InvalidInput(
+            "Submission draft must state between 1 and 32 caveats".into(),
+        ));
+    }
+    for value in draft
+        .conditions
+        .iter()
+        .chain(&draft.caveats)
+        .chain(&draft.verification_requirements)
+    {
+        bounded_text(value, "Submission text field")?;
+    }
+    if !draft.producer.starts_with("agent:")
+        || draft.producer.len() > 16_384
+        || draft.producer.chars().any(char::is_whitespace)
+    {
+        return Err(PortError::InvalidInput(
+            "direct authoring producer must be one explicit agent:<id> identity".into(),
+        ));
+    }
+    if let Some(source_run) = &draft.source_run {
+        bounded_text(source_run, "source run")?;
+    }
+    let mut total = 0_u64;
+    for artifact in &draft.artifacts {
+        bounded_text(&artifact.kind, "Artifact kind")?;
+        let (size, _) = read_submission_artifact(repository, &artifact.path, &artifact.sha256)?;
+        if size != artifact.size {
+            return Err(PortError::Unsupported(format!(
+                "Submission Artifact {} size changed after capture",
+                artifact.path
+            )));
+        }
+        total = total
+            .checked_add(size)
+            .ok_or_else(|| PortError::Unsupported("Artifact size total overflowed".into()))?;
+    }
+    Ok(total)
+}
+
+pub(crate) fn preview_submission_draft(
+    repository: &Path,
+    binary: &Path,
+    git: &crate::contracts::GitSnapshotDto,
+    draft: SubmissionDraftDto,
+    producer_checks: Vec<String>,
+) -> Result<SubmissionPreviewDto, PortError> {
+    let identity = inspect_binary(binary)?;
+    if identity.state != VelaBinaryStateDto::SignedRuntimeBaseline {
+        return Err(PortError::Unsupported(
+            "Submission intake requires the pinned signed Vela runtime".into(),
+        ));
+    }
+    let artifact_total_bytes = validate_draft(repository, &draft)?;
+    if producer_checks.len() != draft.producer_check_run_ids.len()
+        || producer_checks.len() > 16
+        || producer_checks.iter().any(|value| {
+            value.len() > 16_384
+                || value.trim() != value
+                || !value.contains(':')
+                || value.chars().any(|character| character == '\0')
+        })
+    {
+        return Err(PortError::InvalidInput(
+            "producer checks must resolve exactly from the selected completed runs".into(),
+        ));
+    }
+    let mut argv = vec![
+        identity.path.clone(),
+        "submit".into(),
+        "--repo".into(),
+        git.root.clone(),
+    ];
+    argv.extend(["--claim".into(), draft.assertion.clone()]);
+    argv.extend(["--type".into(), draft.claim_type.clone()]);
+    for condition in &draft.conditions {
+        argv.extend(["--condition".into(), condition.clone()]);
+    }
+    argv.extend(["--replayability".into(), draft.replayability.clone()]);
+    for artifact in &draft.artifacts {
+        argv.extend([
+            "--artifact".into(),
+            format!("{}:{}", artifact.path, artifact.kind),
+        ]);
+    }
+    for caveat in &draft.caveats {
+        argv.extend(["--caveat".into(), caveat.clone()]);
+    }
+    for check in &producer_checks {
+        argv.extend(["--check".into(), check.clone()]);
+    }
+    for requirement in &draft.verification_requirements {
+        argv.extend(["--requires-verification".into(), requirement.clone()]);
+    }
+    if let Some(source_run) = &draft.source_run {
+        argv.extend(["--source-run".into(), source_run.clone()]);
+    }
+    argv.extend(["--as".into(), draft.producer.clone(), "--json".into()]);
+    Ok(SubmissionPreviewDto {
+        draft,
+        repository_path: git.root.clone(),
+        source_commit: git.head_commit.clone(),
+        source_tree: git.head_tree.clone(),
+        vela_binary_sha256: format!("sha256:{}", identity.sha256),
+        argv,
+        artifact_total_bytes,
+        producer_checks,
+        authority_boundary: SUBMISSION_AUTHORITY_BOUNDARY.into(),
+        warning: "Vela will sign as the displayed producer and make one ordinary local Git commit if repository preconditions pass. No network publication occurs.".into(),
+    })
+}
+
+fn run_submit(
+    binary: &Path,
+    repository: &Path,
+    args: &[String],
+) -> Result<SubmissionResultDto, PortError> {
+    if !accepted_runtime_sha256(&sha256(binary)?) {
+        return Err(PortError::Unsupported(
+            "selected Vela executable changed before Submission intake".into(),
+        ));
+    }
+    let mut spec = ProcessSpec::new(binary, repository).args(args);
+    spec.timeout = Duration::from_secs(120);
+    spec.max_stdout = 512 * 1024;
+    spec.max_stderr = 256 * 1024;
+    let output = run_bounded(spec)?;
+    if !accepted_runtime_sha256(&sha256(binary)?) {
+        return Err(PortError::Unsupported(
+            "selected Vela executable changed during Submission intake".into(),
+        ));
+    }
+    match parse_envelope::<SubmitResultV1Wire>(&output, "vela.submit-result.v1", "submit")? {
+        Envelope::Failure(error) => Err(PortError::Process(format!(
+            "Vela refused Submission intake: {}",
+            error.error.message
+        ))),
+        Envelope::Success(result) => validate_submit_result(result),
+    }
+}
+
+fn validate_submit_result(result: SubmitResultV1Wire) -> Result<SubmissionResultDto, PortError> {
+    if result.schema != "vela.submit-result.v1"
+        || result.route != "pending_review"
+        || result.accepted_event_count_before != result.accepted_event_count_after
+        || result.accepted_event_delta != 0
+        || result.accepted_state_changed
+    {
+        return Err(PortError::Parse(
+            "Vela submit result crossed the bounded producer-only authority contract".into(),
+        ));
+    }
+    let (publication_state, publication_commit) = match result.publication {
+        PublicationWire::Unchanged { commit } => ("unchanged".into(), Some(commit)),
+        PublicationWire::Uncommitted { candidate, reason } => {
+            if reason.trim().is_empty() {
+                return Err(PortError::Parse(
+                    "uncommitted publication omitted its reason".into(),
+                ));
+            }
+            ("uncommitted".into(), candidate)
+        }
+        PublicationWire::CommittedLocal { commit } => ("committed_local".into(), Some(commit)),
+    };
+    Ok(SubmissionResultDto {
+        operation_id: result.operation_id,
+        submission_id: result.submission_id,
+        submission_root: result.submission_root,
+        proposal_id: result.proposal_id,
+        proposal_root: result.proposal_root,
+        claim_id: result.claim_id,
+        route: result.route,
+        accepted_event_delta: result.accepted_event_delta,
+        accepted_state_changed: result.accepted_state_changed,
+        publication_state,
+        publication_commit,
+    })
+}
+
+pub(crate) fn submit_draft(
+    binary: &Path,
+    preview: &SubmissionPreviewDto,
+) -> Result<SubmissionResultDto, PortError> {
+    let [program, args @ ..] = preview.argv.as_slice() else {
+        return Err(PortError::InvalidInput(
+            "Submission preview omitted argv".into(),
+        ));
+    };
+    if Path::new(program) != binary {
+        return Err(PortError::Unsupported(
+            "Submission preview Vela path changed".into(),
+        ));
+    }
+    run_submit(binary, Path::new(&preview.repository_path), args)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DsseEnvelopeWire {
+    payload_type: String,
+    payload: String,
+    signatures: Vec<DsseSignatureWire>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DsseSignatureWire {
+    keyid: String,
+    sig: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionPayloadPreviewWire {
+    schema: String,
+    identity: SubmissionIdentityPreviewWire,
+    claim: SubmissionClaimPreviewWire,
+    artifacts: Vec<SubmissionArtifactPreviewWire>,
+    caveats: Vec<String>,
+    replayability: String,
+    producer_checks: Vec<serde_json::Value>,
+    verification_requirements: Vec<String>,
+    requested_change: serde_json::Value,
+    provenance: SubmissionProvenancePreviewWire,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionIdentityPreviewWire {
+    schema: String,
+    actor_id: String,
+    actor_class: String,
+    public_key_hex: String,
+    declared_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionClaimPreviewWire {
+    assertion: String,
+    #[serde(rename = "type")]
+    claim_type: String,
+    conditions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionArtifactPreviewWire {
+    kind: String,
+    path: String,
+    digest: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionProvenancePreviewWire {
+    producer: String,
+    source_system: String,
+    source_run: Option<String>,
+    emitted_at: String,
+}
+
+fn read_envelope(path: &Path) -> Result<(PathBuf, Vec<u8>), PortError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        PortError::InvalidInput(format!("inspect Submission envelope: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(PortError::InvalidInput(
+            "Submission envelope must be one regular non-symlink file".into(),
+        ));
+    }
+    if metadata.len() > super::evidence::MAX_EVIDENCE_BYTES {
+        return Err(PortError::Unsupported(
+            "Submission envelope exceeds the Workbench exact-display limit".into(),
+        ));
+    }
+    let canonical = std::fs::canonicalize(path).map_err(|error| {
+        PortError::InvalidInput(format!("resolve Submission envelope: {error}"))
+    })?;
+    let bytes = std::fs::read(&canonical)
+        .map_err(|error| PortError::InvalidInput(format!("read Submission envelope: {error}")))?;
+    Ok((canonical, bytes))
+}
+
+pub(crate) fn preview_submission_import(
+    repository: &Path,
+    binary: &Path,
+    git: &crate::contracts::GitSnapshotDto,
+    envelope_path: &Path,
+) -> Result<SubmissionImportPreviewDto, PortError> {
+    let identity = inspect_binary(binary)?;
+    if identity.state != VelaBinaryStateDto::SignedRuntimeBaseline {
+        return Err(PortError::Unsupported(
+            "Submission import requires the pinned signed Vela runtime".into(),
+        ));
+    }
+    let (canonical, envelope_bytes) = read_envelope(envelope_path)?;
+    let envelope: DsseEnvelopeWire = serde_json::from_slice(&envelope_bytes).map_err(|error| {
+        PortError::Parse(format!("Submission envelope JSON is invalid: {error}"))
+    })?;
+    if envelope.payload_type != "application/vnd.vela.submission.v3+json"
+        || envelope.signatures.is_empty()
+        || envelope
+            .signatures
+            .iter()
+            .any(|signature| signature.keyid.trim().is_empty() || signature.sig.trim().is_empty())
+    {
+        return Err(PortError::Parse(
+            "Submission envelope does not have the required v3 DSSE shape".into(),
+        ));
+    }
+    let payload_bytes = STANDARD
+        .decode(&envelope.payload)
+        .map_err(|_| PortError::Parse("Submission DSSE payload is not valid base64".into()))?;
+    let payload: SubmissionPayloadPreviewWire = serde_json::from_slice(&payload_bytes)
+        .map_err(|error| PortError::Parse(format!("Submission v3 payload is invalid: {error}")))?;
+    if payload.schema != "vela.submission.v3"
+        || payload.identity.schema != "vela.signer-identity.v1"
+        || payload.identity.actor_id != payload.provenance.producer
+        || payload.identity.actor_class.trim().is_empty()
+        || payload.identity.public_key_hex.len() != 64
+        || payload.identity.declared_at.trim().is_empty()
+        || payload.provenance.source_system.trim().is_empty()
+        || payload.provenance.emitted_at.trim().is_empty()
+        || !matches!(
+            payload.replayability.as_str(),
+            "exact" | "bounded" | "approximate" | "unavailable" | "unknown"
+        )
+        || payload.claim.conditions.len() > 32
+        || payload.caveats.is_empty()
+        || payload.producer_checks.len() > 32
+        || payload.verification_requirements.len() > 32
+        || !payload.requested_change.is_object()
+    {
+        return Err(PortError::Parse(
+            "Submission payload preview invariants are invalid".into(),
+        ));
+    }
+    if let Some(source_run) = &payload.provenance.source_run {
+        bounded_text(source_run, "source run")?;
+    }
+    let mut artifacts = Vec::new();
+    for artifact in payload.artifacts {
+        validate_relative_artifact(&artifact.path)?;
+        validate_digest(&artifact.digest, "Artifact digest")?;
+        let repository_source = repository.join(&artifact.path);
+        let source = if repository_source.is_file() {
+            repository_source
+        } else {
+            let digest = artifact
+                .digest
+                .strip_prefix("sha256:")
+                .expect("validated digest");
+            canonical
+                .parent()
+                .ok_or_else(|| PortError::InvalidInput("Submission envelope has no parent".into()))?
+                .join("artifacts")
+                .join("sha256")
+                .join(digest)
+        };
+        let metadata = std::fs::symlink_metadata(&source).map_err(|error| {
+            PortError::InvalidInput(format!(
+                "Submission transport Artifact {} is unavailable: {error}",
+                artifact.path
+            ))
+        })?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() > super::evidence::MAX_EVIDENCE_BYTES
+            || format!("sha256:{}", sha256(&source)?) != artifact.digest
+        {
+            return Err(PortError::Unsupported(format!(
+                "Submission transport Artifact {} is not the exact bounded regular file",
+                artifact.path
+            )));
+        }
+        artifacts.push(SubmissionArtifactDraftDto {
+            path: artifact.path,
+            kind: artifact.kind,
+            sha256: artifact.digest,
+            size: metadata.len(),
+        });
+    }
+    Ok(SubmissionImportPreviewDto {
+        envelope_path: canonical.display().to_string(),
+        envelope_sha256: format!("sha256:{}", sha256(&canonical)?),
+        envelope_size: envelope_bytes.len() as u64,
+        envelope_base64: STANDARD.encode(&envelope_bytes),
+        payload_type: envelope.payload_type,
+        producer: payload.identity.actor_id,
+        assertion: payload.claim.assertion,
+        claim_type: payload.claim.claim_type,
+        artifacts,
+        repository_path: git.root.clone(),
+        source_commit: git.head_commit.clone(),
+        source_tree: git.head_tree.clone(),
+        vela_binary_sha256: format!("sha256:{}", identity.sha256),
+        authority_boundary: SUBMISSION_AUTHORITY_BOUNDARY.into(),
+        warning: "The Workbench preview validates bounded v3 shape and exact transport bytes. The signed Vela CLI independently verifies the producer signature and repository preconditions before any import.".into(),
+    })
+}
+
+pub(crate) fn import_submission(
+    binary: &Path,
+    preview: &SubmissionImportPreviewDto,
+) -> Result<SubmissionResultDto, PortError> {
+    let (_, current) = read_envelope(Path::new(&preview.envelope_path))?;
+    let current_digest = Sha256::digest(&current)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if format!("sha256:{current_digest}") != preview.envelope_sha256
+        || current.len() as u64 != preview.envelope_size
+        || STANDARD.encode(&current) != preview.envelope_base64
+    {
+        return Err(PortError::Unsupported(
+            "signed Submission envelope changed after preview".into(),
+        ));
+    }
+    run_submit(
+        binary,
+        Path::new(&preview.repository_path),
+        &[
+            "submit".into(),
+            preview.envelope_path.clone(),
+            "--repo".into(),
+            preview.repository_path.clone(),
+            "--json".into(),
+        ],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::{fs, path::Path};
 
     use super::{
-        ClaimsV1Wire, Envelope, IntegrationCheckV1Wire, IntegrationInspectionV1Wire,
-        PLATFORM_RUNTIME_SHA256, RUNTIME_VERSION, StatusV4Wire, VelaBinaryStateDto,
+        ClaimsV1Wire, DsseEnvelopeWire, Envelope, IntegrationCheckV1Wire,
+        IntegrationInspectionV1Wire, PLATFORM_RUNTIME_SHA256, PublicationWire, RUNTIME_VERSION,
+        StatusV4Wire, SubmissionPayloadPreviewWire, SubmitResultV1Wire, VelaBinaryStateDto,
         accepted_runtime_sha256, inspect_binary, parse_envelope, validate_claims,
-        validate_integration, validate_status,
+        validate_integration, validate_status, validate_submit_result,
     };
     use crate::ports::ProcessOutput;
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use sha2::{Digest, Sha256};
 
     fn fixture(path: &str) -> ProcessOutput {
         ProcessOutput {
@@ -577,6 +1110,13 @@ mod tests {
             stdout_truncated: false,
             stderr_truncated: false,
         }
+    }
+
+    fn digest_hex(bytes: &[u8]) -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 
     #[test]
@@ -671,11 +1211,70 @@ mod tests {
     }
 
     #[test]
+    fn frozen_signed_submission_v3_binds_exact_transport_artifact() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../fixtures/core/v0.977.1/submission-bundle");
+        let envelope_bytes = fs::read(root.join("submission.json")).expect("signed envelope");
+        assert_eq!(
+            digest_hex(&envelope_bytes),
+            "f1669cdfa498ff85c162bce6173f04b39cdf7620fb198a19b45f6d932302204a"
+        );
+        let envelope: DsseEnvelopeWire =
+            serde_json::from_slice(&envelope_bytes).expect("DSSE envelope shape");
+        assert_eq!(
+            envelope.payload_type,
+            "application/vnd.vela.submission.v3+json"
+        );
+        assert!(!envelope.signatures.is_empty());
+        let payload: SubmissionPayloadPreviewWire =
+            serde_json::from_slice(&STANDARD.decode(&envelope.payload).expect("base64 payload"))
+                .expect("Submission v3 payload");
+        assert_eq!(payload.schema, "vela.submission.v3");
+        assert_eq!(payload.identity.actor_id, payload.provenance.producer);
+        let artifact = payload.artifacts.first().expect("bounded Artifact");
+        let digest = artifact
+            .digest
+            .strip_prefix("sha256:")
+            .expect("sha256 Artifact");
+        let bytes =
+            fs::read(root.join("artifacts/sha256").join(digest)).expect("transport Artifact");
+        assert_eq!(digest_hex(&bytes), digest);
+    }
+
+    #[test]
     fn unsupported_schema_fails_closed() {
         let output = fixture("../tests/fixtures/hostile/unsupported-status.json");
         let error = parse_envelope::<StatusV4Wire>(&output, "vela.status.v4", "status")
             .expect_err("unsupported schema must refuse");
         assert_eq!(error.kind(), "unsupported");
+    }
+
+    #[test]
+    fn submission_result_cannot_cross_into_acceptance_or_events() {
+        let result = SubmitResultV1Wire {
+            schema: "vela.submit-result.v1".into(),
+            operation_id: "op".into(),
+            submission_id: "vsb_test".into(),
+            submission_root: format!("sha256:{}", "1".repeat(64)),
+            proposal_id: "vpr_test".into(),
+            proposal_root: format!("sha256:{}", "2".repeat(64)),
+            claim_id: "vcl_test".into(),
+            route: "pending_review".into(),
+            accepted_event_count_before: 0,
+            accepted_event_count_after: 1,
+            accepted_event_delta: 1,
+            accepted_state_changed: true,
+            publication: PublicationWire::CommittedLocal {
+                commit: "3".repeat(40),
+            },
+        };
+        let error = validate_submit_result(result)
+            .expect_err("Submission intake must refuse authority effects");
+        assert!(
+            error
+                .to_string()
+                .contains("producer-only authority contract")
+        );
     }
 
     #[test]

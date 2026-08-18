@@ -4,7 +4,7 @@ register: product
 
 ## Product purpose
 
-Vela Workbench is a local desktop shell for inspecting exact Git and Vela state without absorbing the systems that own that state. It lets a researcher open several native repositories, orient to current accepted contributions, inspect worktrees and Entire checkpoint references, and hand exact source to an editor, terminal, or forge. Tranche 1 is strictly read-only.
+Vela Workbench is a local desktop shell for inspecting exact Git and Vela state without absorbing the systems that own that state. It lets a researcher open several native repositories, orient to current accepted contributions, inspect worktrees and Entire checkpoint references, run one explicitly reviewed source-native profile, capture explicit evidence, and prepare an ordinary Submission v3. Tranche 2 makes only the bounded local changes named below; Verification, Decision, hosted authority, and generic execution remain absent.
 
 The application is useful when a researcher has private local files, multiple source repositories, and a signed Vela executable that must remain under local custody. It should make the boundaries among Git source state, Vela scientific state, Entire provenance, and external tools visible at every handoff.
 

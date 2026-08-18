@@ -3,8 +3,12 @@ use std::{
     io::{self, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use thiserror::Error;
@@ -46,6 +50,7 @@ pub(crate) struct ProcessSpec {
     pub timeout: Duration,
     pub max_stdout: usize,
     pub max_stderr: usize,
+    pub path_prefix: Option<PathBuf>,
 }
 
 impl ProcessSpec {
@@ -57,6 +62,7 @@ impl ProcessSpec {
             timeout: Duration::from_secs(8),
             max_stdout: 2 * 1024 * 1024,
             max_stderr: 256 * 1024,
+            path_prefix: None,
         }
     }
 
@@ -83,21 +89,48 @@ pub(crate) struct ProcessOutput {
     pub stderr_truncated: bool,
 }
 
-fn explicit_environment(command: &mut Command) {
-    command.env_clear();
+fn environment_values(path_prefix: Option<&Path>) -> Vec<(OsString, OsString)> {
+    let mut values = Vec::new();
     for key in ["HOME", "TMPDIR", "LANG", "LC_ALL"] {
         if let Some(value) = std::env::var_os(key) {
-            command.env(key, value);
+            values.push((OsString::from(key), value));
         }
     }
     #[cfg(target_os = "macos")]
-    command.env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin");
+    let base_path = OsString::from("/usr/bin:/bin:/usr/sbin:/sbin");
     #[cfg(not(target_os = "macos"))]
-    if let Some(value) = std::env::var_os("PATH") {
-        command.env("PATH", value);
+    let base_path = std::env::var_os("PATH").unwrap_or_default();
+    let path = if let Some(prefix) = path_prefix {
+        let mut value = prefix.as_os_str().to_os_string();
+        value.push(":");
+        value.push(base_path);
+        value
+    } else {
+        base_path
+    };
+    values.push((OsString::from("PATH"), path));
+    values.push((OsString::from("GIT_OPTIONAL_LOCKS"), OsString::from("0")));
+    values.push((OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")));
+    values
+}
+
+pub(crate) fn environment_summary(path_prefix: Option<&Path>) -> Vec<(String, String)> {
+    environment_values(path_prefix)
+        .into_iter()
+        .map(|(name, value)| {
+            (
+                name.to_string_lossy().into_owned(),
+                value.to_string_lossy().into_owned(),
+            )
+        })
+        .collect()
+}
+
+fn explicit_environment(command: &mut Command, path_prefix: Option<&Path>) {
+    command.env_clear();
+    for (name, value) in environment_values(path_prefix) {
+        command.env(name, value);
     }
-    command.env("GIT_OPTIONAL_LOCKS", "0");
-    command.env("GIT_TERMINAL_PROMPT", "0");
 }
 
 fn drain_bounded<R: Read>(mut reader: R, limit: usize) -> io::Result<(Vec<u8>, bool)> {
@@ -157,7 +190,7 @@ pub(crate) fn run_bounded(spec: ProcessSpec) -> Result<ProcessOutput, PortError>
         // descendants that inherited the captured pipes.
         command.process_group(0);
     }
-    explicit_environment(&mut command);
+    explicit_environment(&mut command, spec.path_prefix.as_deref());
 
     let mut child = command.spawn().map_err(|error| {
         PortError::Unavailable(format!("start {}: {error}", spec.program.display()))
@@ -218,6 +251,118 @@ pub(crate) fn run_bounded(spec: ProcessSpec) -> Result<ProcessOutput, PortError>
     })
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum CancellableProcessOutput {
+    Completed(ProcessOutput),
+    Cancelled(ProcessOutput),
+    TimedOut(ProcessOutput),
+}
+
+fn collect_output(
+    status: Option<std::process::ExitStatus>,
+    stdout_reader: thread::JoinHandle<io::Result<(Vec<u8>, bool)>>,
+    stderr_reader: thread::JoinHandle<io::Result<(Vec<u8>, bool)>>,
+) -> Result<ProcessOutput, PortError> {
+    let (stdout, stdout_truncated) = stdout_reader
+        .join()
+        .map_err(|_| PortError::Process("stdout reader panicked".into()))?
+        .map_err(|error| PortError::Process(format!("read child stdout: {error}")))?;
+    let (stderr, stderr_truncated) = stderr_reader
+        .join()
+        .map_err(|_| PortError::Process("stderr reader panicked".into()))?
+        .map_err(|error| PortError::Process(format!("read child stderr: {error}")))?;
+    Ok(ProcessOutput {
+        success: status
+            .as_ref()
+            .is_some_and(std::process::ExitStatus::success),
+        exit_code: status.and_then(|value| value.code()),
+        stdout,
+        stderr,
+        stdout_truncated,
+        stderr_truncated,
+    })
+}
+
+pub(crate) fn run_cancellable(
+    spec: ProcessSpec,
+    cancel: Arc<AtomicBool>,
+) -> Result<CancellableProcessOutput, PortError> {
+    let cwd = std::fs::canonicalize(&spec.cwd).map_err(|error| {
+        PortError::InvalidInput(format!(
+            "resolve working directory {}: {error}",
+            spec.cwd.display()
+        ))
+    })?;
+    if !cwd.is_dir() {
+        return Err(PortError::InvalidInput(format!(
+            "working directory is not a directory: {}",
+            cwd.display()
+        )));
+    }
+    let mut command = Command::new(&spec.program);
+    command
+        .args(&spec.args)
+        .current_dir(&cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    explicit_environment(&mut command, spec.path_prefix.as_deref());
+    let mut child = command.spawn().map_err(|error| {
+        PortError::Unavailable(format!("start {}: {error}", spec.program.display()))
+    })?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| PortError::Process("child stdout was unavailable".into()))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| PortError::Process("child stderr was unavailable".into()))?;
+    let stdout_limit = spec.max_stdout;
+    let stderr_limit = spec.max_stderr;
+    let stdout_reader = thread::spawn(move || drain_bounded(stdout, stdout_limit));
+    let stderr_reader = thread::spawn(move || drain_bounded(stderr, stderr_limit));
+    let started = Instant::now();
+    let mut termination = None;
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| PortError::Process(format!("poll child: {error}")))?
+        {
+            break Some(status);
+        }
+        if cancel.load(Ordering::SeqCst) {
+            termination = Some("cancelled");
+            break None;
+        }
+        if started.elapsed() >= spec.timeout {
+            termination = Some("timed_out");
+            break None;
+        }
+        thread::sleep(Duration::from_millis(25));
+    };
+    if status.is_none() {
+        #[cfg(unix)]
+        terminate_process_group(child.id());
+        let _ = child.kill();
+        let _ = child.wait();
+    } else {
+        #[cfg(unix)]
+        terminate_process_group(child.id());
+    }
+    let output = collect_output(status, stdout_reader, stderr_reader)?;
+    Ok(match termination {
+        Some("cancelled") => CancellableProcessOutput::Cancelled(output),
+        Some("timed_out") => CancellableProcessOutput::TimedOut(output),
+        _ => CancellableProcessOutput::Completed(output),
+    })
+}
+
 pub(crate) fn utf8(bytes: &[u8], label: &str) -> Result<String, PortError> {
     String::from_utf8(bytes.to_vec())
         .map_err(|_| PortError::Parse(format!("{label} was not valid UTF-8")))
@@ -246,9 +391,34 @@ pub(crate) fn canonical_directory(path: &Path) -> Result<PathBuf, PortError> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        thread,
+        time::{Duration, Instant},
+    };
 
-    use super::{ProcessSpec, run_bounded};
+    use super::{CancellableProcessOutput, ProcessSpec, run_bounded, run_cancellable};
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_cancellation_terminates_the_process_group_promptly() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let mut spec = ProcessSpec::new("/bin/sh", temp.path()).args(["-c", "sleep 30 & wait"]);
+        spec.timeout = Duration::from_secs(30);
+        let cancellation = Arc::new(AtomicBool::new(false));
+        let signal = Arc::clone(&cancellation);
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            signal.store(true, Ordering::SeqCst);
+        });
+        let started = Instant::now();
+        let result = run_cancellable(spec, cancellation).expect("cancellable process");
+        assert!(matches!(result, CancellableProcessOutput::Cancelled(_)));
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
 
     #[cfg(unix)]
     #[test]

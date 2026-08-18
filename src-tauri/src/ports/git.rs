@@ -1,6 +1,12 @@
-use std::{ffi::OsString, path::Path, time::Duration};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
-use crate::contracts::{EntireCheckpointDto, GitRemoteDto, GitSnapshotDto, GitWorktreeDto};
+use crate::contracts::{
+    EntireCheckpointDto, GitRemoteDto, GitSnapshotDto, GitWorktreeDto, WorktreePreviewDto,
+};
 use url::Url;
 
 use super::{
@@ -41,6 +47,166 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, PortError> {
         )));
     }
     utf8(&output.stdout, "git stdout")
+}
+
+fn run_git_os(root: &Path, args: Vec<OsString>, timeout: Duration) -> Result<String, PortError> {
+    let root = canonical_directory(root)?;
+    let mut argv = vec![
+        OsString::from("--no-optional-locks"),
+        OsString::from("-c"),
+        OsString::from("core.fsmonitor=false"),
+        OsString::from("-c"),
+        OsString::from("core.hooksPath=/dev/null"),
+        OsString::from("-C"),
+        root.as_os_str().to_os_string(),
+    ];
+    argv.extend(args);
+    let mut spec = ProcessSpec::new(GIT_PROGRAM, &root).args(argv);
+    spec.timeout = timeout;
+    let output = run_bounded(spec)?;
+    ensure_not_truncated(&output, "git")?;
+    if !output.success {
+        let stderr = utf8(&output.stderr, "git stderr")?;
+        return Err(PortError::Process(format!(
+            "git operation failed with {:?}: {}",
+            output.exit_code,
+            stderr.trim()
+        )));
+    }
+    utf8(&output.stdout, "git stdout")
+}
+
+fn validated_ref(value: &str) -> Result<&str, PortError> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.len() > 512
+        || value.starts_with('-')
+        || value.chars().any(char::is_control)
+    {
+        return Err(PortError::InvalidInput(
+            "target ref must be a non-empty bounded Git ref without flags or control characters"
+                .into(),
+        ));
+    }
+    Ok(value)
+}
+
+fn empty_destination(path: &Path) -> Result<PathBuf, PortError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        PortError::InvalidInput(format!("inspect worktree destination: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(PortError::InvalidInput(
+            "worktree destination must be one existing non-symlink directory".into(),
+        ));
+    }
+    let canonical = std::fs::canonicalize(path).map_err(|error| {
+        PortError::InvalidInput(format!("resolve worktree destination: {error}"))
+    })?;
+    if std::fs::read_dir(&canonical)
+        .map_err(|error| PortError::InvalidInput(format!("read worktree destination: {error}")))?
+        .next()
+        .is_some()
+    {
+        return Err(PortError::InvalidInput(
+            "worktree destination must be empty".into(),
+        ));
+    }
+    Ok(canonical)
+}
+
+pub(crate) fn preview_worktree(
+    root: &Path,
+    target_ref: &str,
+    destination: &Path,
+) -> Result<WorktreePreviewDto, PortError> {
+    let snapshot = inspect(root)?;
+    let target_ref = validated_ref(target_ref)?;
+    let destination = empty_destination(destination)?;
+    if destination == Path::new(&snapshot.root)
+        || snapshot
+            .worktrees
+            .iter()
+            .any(|worktree| destination == Path::new(&worktree.path))
+    {
+        return Err(PortError::InvalidInput(
+            "destination is already a Git worktree".into(),
+        ));
+    }
+    let revision = format!("{target_ref}^{{commit}}");
+    let resolved = run_git_os(
+        Path::new(&snapshot.root),
+        vec![
+            OsString::from("rev-parse"),
+            OsString::from("--verify"),
+            OsString::from("--end-of-options"),
+            OsString::from(revision),
+        ],
+        Duration::from_secs(6),
+    )?;
+    let target_commit = resolved.trim().to_ascii_lowercase();
+    if target_commit.len() != 40 || !target_commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(PortError::Parse(
+            "Git ref did not resolve to one full commit id".into(),
+        ));
+    }
+    Ok(WorktreePreviewDto {
+        repository_path: snapshot.root.clone(),
+        source_head: snapshot.head_commit,
+        source_tree: snapshot.head_tree,
+        target_ref: target_ref.into(),
+        target_commit: target_commit.clone(),
+        destination: destination.display().to_string(),
+        command: vec![
+            GIT_PROGRAM.into(),
+            "worktree".into(),
+            "add".into(),
+            "--detach".into(),
+            destination.display().to_string(),
+            target_commit.clone(),
+        ],
+        rollback: vec![
+            GIT_PROGRAM.into(),
+            "worktree".into(),
+            "remove".into(),
+            destination.display().to_string(),
+        ],
+        warning: "Creates one detached checkout at the exact resolved commit. It does not switch, reset, or modify the selected checkout.".into(),
+    })
+}
+
+pub(crate) fn create_worktree(expected: &WorktreePreviewDto) -> Result<PathBuf, PortError> {
+    let rebuilt = preview_worktree(
+        Path::new(&expected.repository_path),
+        &expected.target_ref,
+        Path::new(&expected.destination),
+    )?;
+    if &rebuilt != expected {
+        return Err(PortError::Unsupported(
+            "worktree preview is stale; preview again".into(),
+        ));
+    }
+    run_git_os(
+        Path::new(&expected.repository_path),
+        vec![
+            OsString::from("worktree"),
+            OsString::from("add"),
+            OsString::from("--detach"),
+            OsString::from(&expected.destination),
+            OsString::from(&expected.target_commit),
+        ],
+        Duration::from_secs(60),
+    )?;
+    let destination = std::fs::canonicalize(&expected.destination).map_err(|error| {
+        PortError::Process(format!("resolve created worktree destination: {error}"))
+    })?;
+    let snapshot = inspect(&destination)?;
+    if snapshot.head_commit != expected.target_commit || !snapshot.detached {
+        return Err(PortError::Process(
+            "created worktree does not match the reviewed detached commit".into(),
+        ));
+    }
+    Ok(destination)
 }
 
 pub(crate) fn inspect(root: &Path) -> Result<GitSnapshotDto, PortError> {
@@ -265,7 +431,10 @@ fn redact_remote_url(raw: &str) -> String {
 mod tests {
     use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
-    use super::{GIT_PROGRAM, inspect, parse_log, parse_remotes, parse_status, parse_worktrees};
+    use super::{
+        GIT_PROGRAM, create_worktree, inspect, parse_log, parse_remotes, parse_status,
+        parse_worktrees, preview_worktree,
+    };
 
     fn bytes_under(path: &Path, root: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
         let mut entries: Vec<_> = fs::read_dir(path)
@@ -364,6 +533,64 @@ mod tests {
         let after = snapshot_bytes(root);
         assert_eq!(before, after);
         assert!(!snapshot.dirty);
+    }
+
+    #[test]
+    fn detached_worktree_creation_preserves_selected_checkout_and_binds_exact_commit() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("source");
+        let destination = temp.path().join("detached");
+        fs::create_dir(&root).expect("source");
+        fs::create_dir(&destination).expect("destination");
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args(["init", "-q"])
+                .current_dir(&root)
+                .status()
+                .expect("init")
+                .success()
+        );
+        fs::write(root.join("result.txt"), "bounded evidence\n").expect("fixture");
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args(["add", "result.txt"])
+                .current_dir(&root)
+                .status()
+                .expect("add")
+                .success()
+        );
+        assert!(
+            Command::new(GIT_PROGRAM)
+                .args([
+                    "-c",
+                    "user.name=Vela Test",
+                    "-c",
+                    "user.email=test@invalid.example",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "fixture"
+                ])
+                .current_dir(&root)
+                .status()
+                .expect("commit")
+                .success()
+        );
+        let before = inspect(&root).expect("before");
+        let source_bytes = fs::read(root.join("result.txt")).expect("source bytes");
+        let preview = preview_worktree(&root, "HEAD", &destination).expect("preview");
+        assert_eq!(preview.target_commit, before.head_commit);
+        let created = create_worktree(&preview).expect("create");
+        let created_snapshot = inspect(&created).expect("created inspect");
+        let after = inspect(&root).expect("after");
+        assert!(created_snapshot.detached);
+        assert_eq!(created_snapshot.head_commit, before.head_commit);
+        assert_eq!(after.head_commit, before.head_commit);
+        assert_eq!(
+            fs::read(root.join("result.txt")).expect("source bytes"),
+            source_bytes
+        );
+        assert!(preview_worktree(&root, "--help", temp.path()).is_err());
     }
 
     #[test]

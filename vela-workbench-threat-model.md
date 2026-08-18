@@ -31,7 +31,7 @@ Out of scope: Core release production, Verification, Decision, authority actions
 ### Data flows and trust boundaries
 
 - User → native dialogs → Rust: selected local paths; OS-native UI; canonicalization, type and executable-mode checks.
-- Renderer → Tauri IPC → Rust: six typed invocations; bundled-local origin and explicit capability; Rust revalidates paths and enums.
+- Renderer → Tauri IPC → Rust: nineteen typed invocations; bundled-local origin and explicit capability; Rust revalidates paths and enums.
 - Untrusted repository → fixed Git/Vela/native processes → Rust: Git metadata, Vela JSON, and command bytes over bounded pipes; fixed argv, cleared environment, timeout/cancellation, schema and semantic validation.
 - User → native destination/file selection → Rust: one empty worktree destination, evidence file, signed envelope, native tool, or export destination; canonicalization, containment, regular-file/type and digest checks.
 - Rust → renderer: generated private DTOs; remote credentials are removed and raw JSON/files never cross.
@@ -98,7 +98,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Repository selection | Native folder dialog | user path → Rust | Canonical root must contain selection | `commands/mod.rs::select_repository`; `ports/git.rs::inspect` |
 | Vela selection | Native file dialog | executable path → Rust process | Hash is checked before any execution and after identity/version commands | `commands/mod.rs::select_vela_binary`; `ports/vela.rs::inspect_binary` |
-| Private IPC | Bundled renderer | WebView → privileged Rust | Six typed commands, local main window only | `src/lib/workbench.ts`; `capabilities/main.json` |
+| Private IPC | Bundled renderer | WebView → privileged Rust | Nineteen typed commands, local main window only | `src/lib/workbench.ts`; `capabilities/main.json` |
 | Git output | Fixed `/usr/bin/git` reads | repository config/output → Rust parser | Hooks, fsmonitor and optional locks disabled | `ports/git.rs::run_git` |
 | Vela JSON | Pinned signed binary | repository/JSON → Rust parser | Supported schema, envelope and semantic invariants | `ports/vela.rs::parse_envelope` and validators |
 | Process pipes | Git, Vela, `open` | child process → host | Bounded bytes, timeout, group termination | `ports/process.rs::run_bounded` |

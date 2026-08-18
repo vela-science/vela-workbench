@@ -3,6 +3,38 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
+pub(crate) struct SubmitResultV1Wire {
+    pub schema: String,
+    pub operation_id: String,
+    pub submission_id: String,
+    pub submission_root: String,
+    pub proposal_id: String,
+    pub proposal_root: String,
+    pub claim_id: String,
+    pub route: String,
+    pub accepted_event_count_before: u64,
+    pub accepted_event_count_after: u64,
+    pub accepted_event_delta: u64,
+    pub accepted_state_changed: bool,
+    pub publication: PublicationWire,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub(crate) enum PublicationWire {
+    Unchanged {
+        commit: String,
+    },
+    Uncommitted {
+        candidate: Option<String>,
+        reason: String,
+    },
+    CommittedLocal {
+        commit: String,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ErrorEnvelopeWire {
     pub schema: String,
     pub ok: bool,

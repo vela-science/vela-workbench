@@ -1,12 +1,12 @@
 # Vela Workbench
 
-Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 1 selects native repositories, orients to supported Vela state, shows Git worktrees and Entire checkpoint references, and hands exact source to a terminal, editor, or forge. It is non-authoritative and read-only with respect to source and scientific state.
+Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 2 preserves the read-only Orient surface and adds four bounded local actions: detached worktree creation, app-reviewed source-native command profiles, explicit evidence capture/export, and ordinary Submission v3 author/import through the signed Vela CLI. It remains non-authoritative: Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, and Vela Core owns scientific-state semantics.
 
 ## Boundary
 
-Workbench does not own Git refs, Entire sessions, agent runtimes, Vela protocol objects, public discovery, hosted collaboration, or authority. It has no server, database, generic shell/filesystem/HTTP command, upload surface, remote WebView, provider app, or bundled Vela sidecar. The only persistent data is one Rust-owned preferences file containing clearable repository paths and the selected Vela executable path.
+Workbench does not own Git refs, Entire sessions, agent runtimes, Vela protocol objects, public discovery, hosted collaboration, or authority. It has no server, database, generic shell/filesystem/HTTP command, upload surface, remote WebView, provider app, or bundled Vela sidecar. The only persistent data is one Rust-owned preferences file containing clearable repository paths and selected tool paths; command output and selected evidence remain process-local and clear on exit or Clear recents.
 
-The renderer invokes six compiled private IPC commands. Rust canonicalizes paths, executes a fixed Git read set, verifies the selected Vela binary, parses supported JSON schemas, and generates the renderer DTO contract one-way from Rust.
+The renderer invokes a closed set of compiled private IPC commands. Rust canonicalizes paths, fixes command-profile arguments, bounds environment/output/lifetime/process-tree capture, verifies the selected Vela binary, parses supported JSON schemas, and generates the renderer DTO contract one-way from Rust. Native execution is not a sandbox: repository-controlled build scripts and plugins run with the current user's privileges, only after an exact preview and explicit initiation.
 
 ## Frozen foundation
 
@@ -30,11 +30,11 @@ bun run check
 bun run tauri build
 ```
 
-`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source.
+`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Tranche 2 packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
 
 ## Security and deletion
 
-The bundled renderer is covered by one local capability containing only the six enumerated commands and a restrictive bundled-local CSP. Child commands receive a cleared environment plus a minimal allowlist, bounded output, timeouts, and process-group termination. External handoffs accept canonical local roots or sanitized HTTPS remotes only.
+The bundled renderer is covered by one local capability containing only the enumerated commands and a restrictive bundled-local CSP. Native command profiles expose their executable identity, fixed arguments, working directory, bounded environment, limits, and current-user privilege warning before Start. Cancellation and timeout bound lifetime and captured output; they are not security isolation. External handoffs accept canonical local roots or sanitized HTTPS remotes only.
 
 Deleting Workbench and its application-data preferences changes no repository bytes, Git refs, Entire checkpoints, Vela objects, Decisions, Events, Standing, or problems.science activity.
 

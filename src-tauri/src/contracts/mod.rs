@@ -2,7 +2,7 @@ mod wire;
 
 pub(crate) use wire::{
     ClaimsV1Wire, ErrorEnvelopeWire, IntegrationCheckV1Wire, IntegrationInspectionV1Wire,
-    IntegrationItemWire, StatusV4Wire,
+    IntegrationItemWire, PublicationWire, StatusV4Wire, SubmitResultV1Wire,
 };
 
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,9 @@ pub struct RuntimePolicyDto {
     pub runtime_commit: String,
     pub runtime_sha256: String,
     pub read_only: bool,
+    pub tranche: String,
+    pub mutation_scope: String,
+    pub tranche_three_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -220,6 +223,243 @@ pub struct LaunchResultDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct WorktreePreviewDto {
+    pub repository_path: String,
+    pub source_head: String,
+    pub source_tree: String,
+    pub target_ref: String,
+    pub target_commit: String,
+    pub destination: String,
+    pub command: Vec<String>,
+    pub rollback: Vec<String>,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct WorktreeResultDto {
+    pub destination: String,
+    pub target_commit: String,
+    pub rollback: Vec<String>,
+    pub repository: RepositorySnapshotDto,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum NativeExecProfileDto {
+    GitDiffCheck,
+    LeanBuild,
+    CargoTest,
+    BunTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct NativeToolDto {
+    pub profile: NativeExecProfileDto,
+    pub path: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct EnvironmentEntryDto {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct NativeExecPreviewDto {
+    pub profile: NativeExecProfileDto,
+    pub label: String,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub executable: NativeToolDto,
+    pub argv: Vec<String>,
+    pub working_directory: String,
+    pub environment: Vec<EnvironmentEntryDto>,
+    pub timeout_ms: u64,
+    pub max_stdout_bytes: u64,
+    pub max_stderr_bytes: u64,
+    pub trust_warning: String,
+    pub sandboxed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NativeExecStateDto {
+    Completed,
+    Failed,
+    Cancelled,
+    TimedOut,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct NativeOutputDto {
+    pub stream: String,
+    pub sha256: String,
+    pub size: u64,
+    pub content_base64: String,
+    pub content_utf8: Option<String>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct NativeExecResultDto {
+    pub run_id: String,
+    pub profile: NativeExecProfileDto,
+    pub state: NativeExecStateDto,
+    pub exit_code: Option<i32>,
+    pub started_at_unix_ms: u64,
+    pub completed_at_unix_ms: u64,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub executable_sha256: String,
+    pub stdout: NativeOutputDto,
+    pub stderr: NativeOutputDto,
+    pub producer_check_method: String,
+    pub producer_check_outcome: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct CancelResultDto {
+    pub run_id: String,
+    pub cancellation_requested: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(tag = "source", rename_all = "snake_case")]
+pub enum EvidenceSourceDto {
+    LocalFile {
+        path: String,
+        repository_relative_path: String,
+    },
+    CommandOutput {
+        run_id: String,
+        stream: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct EvidenceItemDto {
+    pub source: EvidenceSourceDto,
+    pub display_name: String,
+    pub sha256: String,
+    pub size: u64,
+    pub media_type: String,
+    pub kind_hint: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub source_dirty: bool,
+    pub content_base64: String,
+    pub content_utf8: Option<String>,
+    pub private: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct EvidenceExportRequestDto {
+    pub source: EvidenceSourceDto,
+    pub expected_sha256: String,
+    pub exclusions: Vec<String>,
+    pub redaction_confirmed: bool,
+    pub derived_utf8: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct EvidenceExportPreviewDto {
+    pub request: EvidenceExportRequestDto,
+    pub destination: String,
+    pub source_sha256: String,
+    pub source_size: u64,
+    pub output_sha256: String,
+    pub output_size: u64,
+    pub derived: bool,
+    pub exclusions: Vec<String>,
+    pub redaction_confirmed: bool,
+    pub output_base64: String,
+    pub output_utf8: Option<String>,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct EvidenceExportResultDto {
+    pub destination: String,
+    pub sha256: String,
+    pub size: u64,
+    pub derived: bool,
+    pub source_unchanged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct SubmissionArtifactDraftDto {
+    pub path: String,
+    pub kind: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct SubmissionDraftDto {
+    pub assertion: String,
+    pub claim_type: String,
+    pub conditions: Vec<String>,
+    pub replayability: String,
+    pub artifacts: Vec<SubmissionArtifactDraftDto>,
+    pub caveats: Vec<String>,
+    pub producer_check_run_ids: Vec<String>,
+    pub verification_requirements: Vec<String>,
+    pub source_run: Option<String>,
+    pub producer: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct SubmissionPreviewDto {
+    pub draft: SubmissionDraftDto,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub vela_binary_sha256: String,
+    pub argv: Vec<String>,
+    pub artifact_total_bytes: u64,
+    pub producer_checks: Vec<String>,
+    pub authority_boundary: String,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct SubmissionImportPreviewDto {
+    pub envelope_path: String,
+    pub envelope_sha256: String,
+    pub envelope_size: u64,
+    pub envelope_base64: String,
+    pub payload_type: String,
+    pub producer: String,
+    pub assertion: String,
+    pub claim_type: String,
+    pub artifacts: Vec<SubmissionArtifactDraftDto>,
+    pub repository_path: String,
+    pub source_commit: String,
+    pub source_tree: String,
+    pub vela_binary_sha256: String,
+    pub authority_boundary: String,
+    pub warning: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct SubmissionResultDto {
+    pub operation_id: String,
+    pub submission_id: String,
+    pub submission_root: String,
+    pub proposal_id: String,
+    pub proposal_root: String,
+    pub claim_id: String,
+    pub route: String,
+    pub accepted_event_delta: u64,
+    pub accepted_state_changed: bool,
+    pub publication_state: String,
+    pub publication_commit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 pub struct CommandErrorDto {
     pub kind: String,
     pub message: String,
@@ -268,6 +508,26 @@ pub fn typescript_bindings() -> String {
         RepositorySnapshotDto::decl(&config),
         LaunchKindDto::decl(&config),
         LaunchResultDto::decl(&config),
+        WorktreePreviewDto::decl(&config),
+        WorktreeResultDto::decl(&config),
+        NativeExecProfileDto::decl(&config),
+        NativeToolDto::decl(&config),
+        EnvironmentEntryDto::decl(&config),
+        NativeExecPreviewDto::decl(&config),
+        NativeExecStateDto::decl(&config),
+        NativeOutputDto::decl(&config),
+        NativeExecResultDto::decl(&config),
+        CancelResultDto::decl(&config),
+        EvidenceSourceDto::decl(&config),
+        EvidenceItemDto::decl(&config),
+        EvidenceExportRequestDto::decl(&config),
+        EvidenceExportPreviewDto::decl(&config),
+        EvidenceExportResultDto::decl(&config),
+        SubmissionArtifactDraftDto::decl(&config),
+        SubmissionDraftDto::decl(&config),
+        SubmissionPreviewDto::decl(&config),
+        SubmissionImportPreviewDto::decl(&config),
+        SubmissionResultDto::decl(&config),
         CommandErrorDto::decl(&config),
     ];
     let mut output =
@@ -287,5 +547,30 @@ mod tests {
     fn checked_in_renderer_contract_matches_rust_source() {
         let checked_in = include_str!("../../../src/contracts/generated/ipc.ts");
         assert_eq!(checked_in, super::typescript_bindings());
+    }
+
+    #[test]
+    fn tranche_two_capability_exposes_no_generic_or_authority_command() {
+        let permission = include_str!("../../permissions/workbench.toml");
+        for forbidden in [
+            "shell",
+            "http",
+            "upload",
+            "verification",
+            "accept",
+            "reject",
+            "decision",
+            "generic",
+        ] {
+            assert!(
+                !permission.lines().any(|line| {
+                    line.trim_start().starts_with('"')
+                        && line.to_ascii_lowercase().contains(forbidden)
+                }),
+                "forbidden capability command: {forbidden}"
+            );
+        }
+        assert!(permission.contains("preview_submission_draft"));
+        assert!(permission.contains("import_submission"));
     }
 }

@@ -82,14 +82,14 @@ fn launch_https(cwd: &Path, target: &str) -> Result<(), PortError> {
 #[cfg(not(target_os = "macos"))]
 fn launch_local(_cwd: &Path, _app: &str, _target: &str) -> Result<(), PortError> {
     Err(PortError::Unsupported(
-        "this Tranche 1 build has implemented exact local-app handoff on macOS only".into(),
+        "this Workbench build has implemented exact local-app handoff on macOS only".into(),
     ))
 }
 
 #[cfg(not(target_os = "macos"))]
 fn launch_https(_cwd: &Path, _target: &str) -> Result<(), PortError> {
     Err(PortError::Unsupported(
-        "this Tranche 1 build has implemented exact HTTPS handoff on macOS only".into(),
+        "this Workbench build has implemented exact HTTPS handoff on macOS only".into(),
     ))
 }
 
