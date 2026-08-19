@@ -186,14 +186,15 @@ pub(crate) fn source_matches(
     head_commit: &str,
     handoff: &ProblemHandoffDto,
 ) -> (bool, bool) {
-    let remote_matches = remotes.iter().any(|remote| {
-        remote.operation == "fetch"
-            && matches!(
-                launch::https_remote(&remote.url),
-                Ok(url) if url == handoff.source_repository_url
-            )
-    });
+    let remote_matches = repository_matches(remotes, &handoff.source_repository_url);
     (remote_matches, head_commit == handoff.source_revision)
+}
+
+pub(crate) fn repository_matches(remotes: &[GitRemoteDto], expected: &str) -> bool {
+    remotes.iter().any(|remote| {
+        remote.operation == "fetch"
+            && matches!(launch::https_remote(&remote.url), Ok(url) if url == expected)
+    })
 }
 
 #[cfg(test)]
@@ -281,5 +282,9 @@ mod tests {
             source_matches(&wrong, &handoff.source_revision, &handoff),
             (false, true)
         );
+        assert!(repository_matches(
+            &wrong,
+            "https://github.com/vela-science/math"
+        ));
     }
 }

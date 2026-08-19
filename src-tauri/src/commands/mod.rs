@@ -19,12 +19,12 @@ use crate::{
         LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto, NativeExecResultDto,
         NativeToolDto, OpenGaussGitIdentityDto, OpenGaussHandoffPreviewDto,
         OpenGaussHandoffReceiptDto, OpenGaussSelectedCheckDto, OpenGaussSelectedEvidenceDto,
-        PreferencesDto, ProblemHandoffDto, ProblemHandoffSourceDto, RecoveryPreviewDto,
-        RecoveryResultDto, RepositorySnapshotDto, RuntimePolicyDto, SubmissionDraftDto,
-        SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto, VelaBinaryDto,
-        VelaInspectionDto, VerificationDraftDto, VerificationImportPreviewDto,
-        VerificationMethodDto, VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto,
-        WorktreeResultDto,
+        PreferencesDto, ProblemHandoffAuthorityDto, ProblemHandoffDto, ProblemHandoffSourceDto,
+        RecoveryPreviewDto, RecoveryResultDto, RepositoryClassificationDto, RepositorySnapshotDto,
+        RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto,
+        SubmissionResultDto, VelaBinaryDto, VelaInspectionDto, VerificationDraftDto,
+        VerificationImportPreviewDto, VerificationMethodDto, VerificationPreviewDto,
+        VerificationResultDto, WorktreePreviewDto, WorktreeResultDto,
     },
     ports::{self, PortError},
     preferences::PreferencesStore,
@@ -299,6 +299,54 @@ pub(crate) fn review_problem_handoff_source(
         selected_head: git.head_commit,
         remote_matches,
         revision_matches,
+        ready,
+        note: note.into(),
+    })
+}
+
+#[tauri::command]
+pub(crate) fn review_problem_handoff_authority(
+    path: String,
+    handoff: ProblemHandoffDto,
+    state: State<'_, AppState>,
+) -> Result<ProblemHandoffAuthorityDto, CommandErrorDto> {
+    let confirmed = ports::problem_handoff::parse(&handoff.handoff_url)?;
+    if confirmed != handoff {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Problem handoff fields changed after native review",
+        ));
+    }
+    let (canonical, binary) = selected_repository(&path, &state)?;
+    let snapshot = inspect_path(&canonical, binary.as_deref())?;
+    let remote_matches = ports::problem_handoff::repository_matches(
+        &snapshot.git.remotes,
+        &handoff.authority_repository_url,
+    );
+    let vela_repository = snapshot.classification == RepositoryClassificationDto::VelaRepository;
+    let ready = remote_matches && vela_repository;
+    let note = match (remote_matches, vela_repository) {
+        (true, true) => {
+            "The selected checkout matches the authority Repository locator and contains current Vela Repository state. Vela still authenticates and authorizes every Decision separately."
+        }
+        (true, false) => {
+            "The authority remote matches, but the selected checkout is not a current Vela Repository."
+        }
+        (false, true) => {
+            "This is a Vela Repository, but no selected fetch remote matches the handoff authority Repository."
+        }
+        (false, false) => "The selected checkout does not match the handoff authority Repository.",
+    };
+    Ok(ProblemHandoffAuthorityDto {
+        repository_path: snapshot.path,
+        authority_repository_url: handoff.authority_repository_url,
+        repository_id: snapshot
+            .vela
+            .status
+            .as_ref()
+            .map(|status| status.repository_id.clone()),
+        remote_matches,
+        vela_repository,
         ready,
         note: note.into(),
     })
@@ -2181,12 +2229,18 @@ mod tests {
         let mut state = PrivilegedState::default();
         state.replace_inspection_recovery(repository, Some(&first));
         assert_eq!(
-            state.recovery_operations.get(repository).map(String::as_str),
+            state
+                .recovery_operations
+                .get(repository)
+                .map(String::as_str),
             Some(first.as_str())
         );
         state.replace_inspection_recovery(repository, Some(&second));
         assert_eq!(
-            state.recovery_operations.get(repository).map(String::as_str),
+            state
+                .recovery_operations
+                .get(repository)
+                .map(String::as_str),
             Some(second.as_str())
         );
         state.replace_inspection_recovery(repository, None);

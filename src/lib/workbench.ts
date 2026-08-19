@@ -20,6 +20,7 @@ import type {
   OpenGaussHandoffReceiptDto,
   PreferencesDto,
   ProblemHandoffDto,
+  ProblemHandoffAuthorityDto,
   ProblemHandoffSourceDto,
   RepositorySnapshotDto,
   SubmissionDraftDto,
@@ -46,6 +47,8 @@ export const workbench = {
     invoke<LaunchResultDto>("open_problem_handoff", { handoff }),
   reviewProblemHandoffSource: (path: string, handoff: ProblemHandoffDto) =>
     invoke<ProblemHandoffSourceDto>("review_problem_handoff_source", { path, handoff }),
+  reviewProblemHandoffAuthority: (path: string, handoff: ProblemHandoffDto) =>
+    invoke<ProblemHandoffAuthorityDto>("review_problem_handoff_authority", { path, handoff }),
   selectRepository: () => invoke<RepositorySnapshotDto | null>("select_repository"),
   inspectRepository: (path: string) => invoke<RepositorySnapshotDto>("inspect_repository", { path }),
   selectVelaBinary: () => invoke<VelaBinaryDto | null>("select_vela_binary"),

@@ -60,6 +60,17 @@ pub struct ProblemHandoffSourceDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct ProblemHandoffAuthorityDto {
+    pub repository_path: String,
+    pub authority_repository_url: String,
+    pub repository_id: Option<String>,
+    pub remote_matches: bool,
+    pub vela_repository: bool,
+    pub ready: bool,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RepositoryClassificationDto {
     VelaRepository,
@@ -917,6 +928,7 @@ pub fn typescript_bindings() -> String {
         BootstrapDto::decl(&config),
         ProblemHandoffDto::decl(&config),
         ProblemHandoffSourceDto::decl(&config),
+        ProblemHandoffAuthorityDto::decl(&config),
         RepositoryClassificationDto::decl(&config),
         VelaBinaryStateDto::decl(&config),
         VelaBinaryDto::decl(&config),
@@ -1019,6 +1031,7 @@ mod tests {
         for required in [
             "review_problem_handoff",
             "review_problem_handoff_source",
+            "review_problem_handoff_authority",
             "open_problem_handoff",
             "refresh_decision_inbox",
             "preview_verification_record",
@@ -1038,7 +1051,7 @@ mod tests {
                 .lines()
                 .filter(|line| line.trim_start().starts_with('"'))
                 .count(),
-            35
+            36
         );
     }
 }
