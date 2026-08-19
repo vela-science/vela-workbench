@@ -26,7 +26,10 @@ BSD distribution.
 | --- | --- |
 | `Vela Workbench_0.1.0_aarch64.dmg` | `TODO-SIGNING: contents of the sibling .sha256 written by scripts/release-macos.sh` |
 | `Vela Workbench_0.1.0_aarch64.dmg.sha256` | checksum sidecar for the DMG above |
-| `vela-workbench_0.1.0_aarch64.dmg.sbom.spdx.json` | `TODO-SIGNING: shasum -a 256 of the SBOM generated from the signed DMG` |
+| `Vela Workbench_0.1.0_aarch64.dmg.spdx.json` | `TODO-SIGNING: contents of its sibling .spdx.json.sha256 (SPDX SBOM of the signed DMG, syft 1.50.0)` |
+| `Vela Workbench_0.1.0_aarch64.dmg.spdx.json.sha256` | checksum sidecar for the DMG SBOM above |
+| `Vela Workbench_0.1.0_aarch64.source.spdx.json` | `TODO-SIGNING: contents of its sibling .spdx.json.sha256 (SPDX SBOM of the source-locked manifests, syft 1.50.0)` |
+| `Vela Workbench_0.1.0_aarch64.source.spdx.json.sha256` | checksum sidecar for the source SBOM above |
 
 Only artifacts produced by `scripts/release-macos.sh` on a clean,
 remote-equal `main` checkout, with every signing, Gatekeeper, stapling, and

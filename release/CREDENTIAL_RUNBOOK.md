@@ -73,7 +73,11 @@ DMG at `src-tauri/target/release/bundle/dmg/Vela Workbench_0.1.0_aarch64.dmg`
 with its sibling `.sha256`, refusing to finish unless codesign, Gatekeeper
 (`spctl` on app and DMG), stapler validation on both, `hdiutil verify`,
 signer identity and TeamIdentifier match, and the app mounted from the final
-DMG all pass. It never prints credential values and never publishes.
+DMG all pass. After those checks it emits two SPDX SBOM sidecars next to the
+DMG — `...dmg.spdx.json` (the signed DMG) and `...source.spdx.json` (the
+source-locked manifests) — each with its own `.sha256`, using the pinned
+syft 1.50.0 and refusing if syft is absent or a different version. It never
+prints credential values and never publishes.
 
 After it succeeds: run the clean-account first-run checks in INSTALL.md,
 fill every `TODO-SIGNING` slot in `release/RELEASE_BODY_v0.1.0.md` from the

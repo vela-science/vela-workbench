@@ -6,9 +6,11 @@ usage() {
   cat <<'EOF'
 Usage: scripts/release-macos.sh [--check]
 
-Build and verify the signed, notarized macOS arm64 Workbench app and DMG.
---check validates the release host, clean remote-equal main checkout, signing
-identity, and one complete notarization credential family without building.
+Build and verify the signed, notarized macOS arm64 Workbench app and DMG,
+then emit SPDX SBOM sidecars for the DMG and the source-locked manifests.
+--check validates the release host, the pinned syft, clean remote-equal main
+checkout, signing identity, and one complete notarization credential family
+without building.
 EOF
 }
 
@@ -37,6 +39,12 @@ for tool in bun git security codesign spctl xcrun shasum hdiutil; do
 done
 xcrun --find notarytool >/dev/null 2>&1 || fail "Xcode notarytool is unavailable"
 xcrun --find stapler >/dev/null 2>&1 || fail "Xcode stapler is unavailable"
+
+syft_version=1.50.0
+command -v syft >/dev/null 2>&1 || fail "syft $syft_version is required for the SBOM stage and was not found; install the tagged release from https://github.com/anchore/syft/releases/tag/v$syft_version"
+observed_syft=$(syft --version 2>/dev/null | awk '{print $NF}')
+observed_syft=${observed_syft#v}
+[ "$observed_syft" = "$syft_version" ] || fail "syft $observed_syft is not the pinned $syft_version"
 
 source_commit=$(git rev-parse HEAD)
 source_tree=$(git rev-parse 'HEAD^{tree}')
@@ -75,6 +83,8 @@ cargo_version=$(awk -F '"' '/^version = "/ { print $2; exit }' src-tauri/Cargo.t
 [ "$version" = "$cargo_version" ] || fail "package.json and Cargo.toml versions differ"
 app_path="$repo_root/src-tauri/target/release/bundle/macos/Vela Workbench.app"
 dmg_path="$repo_root/src-tauri/target/release/bundle/dmg/Vela Workbench_${version}_aarch64.dmg"
+dmg_sbom_path="${dmg_path}.spdx.json"
+source_sbom_path="${dmg_path%.dmg}.source.spdx.json"
 
 printf 'macOS release preflight passed\n'
 printf '  source commit: %s\n' "$source_commit"
@@ -82,6 +92,7 @@ printf '  source tree:   %s\n' "$source_tree"
 printf '  app version:   %s\n' "$version"
 printf '  signing:       %s\n' "$signing_identity"
 printf '  notarization:  App Store Connect API\n'
+printf '  sbom tool:     syft %s\n' "$syft_version"
 
 [ "$mode" = build ] || exit 0
 
@@ -91,7 +102,9 @@ assert_source_state
 CI=1 bun run tauri build --no-bundle --no-sign -- --locked
 assert_source_state
 rm -rf -- "$app_path"
-rm -f -- "$dmg_path" "${dmg_path}.sha256"
+rm -f -- "$dmg_path" "${dmg_path}.sha256" \
+  "$dmg_sbom_path" "${dmg_sbom_path}.sha256" \
+  "$source_sbom_path" "${source_sbom_path}.sha256"
 APPLE_SIGNING_IDENTITY="$signing_identity" APPLE_API_ISSUER="$api_issuer" APPLE_API_KEY="$api_key" APPLE_API_KEY_PATH="$api_key_path" CI=1 bun run tauri bundle --bundles app,dmg --ci
 assert_source_state
 
@@ -144,7 +157,24 @@ checksum_path="${dmg_path}.sha256"
   shasum -a 256 "$(basename -- "$dmg_path")" > "$(basename -- "$checksum_path")"
 )
 
+syft scan "file:$dmg_path" -o "spdx-json=$dmg_sbom_path" --quiet || fail "syft could not generate the DMG SBOM"
+[ -s "$dmg_sbom_path" ] || fail "the DMG SBOM is missing or empty"
+syft scan "dir:$repo_root" \
+  --exclude ./node_modules --exclude ./src-tauri/target --exclude ./dist \
+  -o "spdx-json=$source_sbom_path" --quiet || fail "syft could not generate the source-locked SBOM"
+[ -s "$source_sbom_path" ] || fail "the source-locked SBOM is missing or empty"
+for sbom in "$dmg_sbom_path" "$source_sbom_path"; do
+  (
+    cd "$(dirname -- "$sbom")"
+    shasum -a 256 "$(basename -- "$sbom")" > "$(basename -- "$sbom").sha256"
+  )
+done
+
+assert_source_state
+
 printf 'signed and notarized macOS release verified\n'
-printf '  app:      %s\n' "$app_path"
-printf '  dmg:      %s\n' "$dmg_path"
-printf '  checksum: %s\n' "$checksum_path"
+printf '  app:         %s\n' "$app_path"
+printf '  dmg:         %s\n' "$dmg_path"
+printf '  checksum:    %s\n' "$checksum_path"
+printf '  dmg sbom:    %s\n' "$dmg_sbom_path"
+printf '  source sbom: %s\n' "$source_sbom_path"
