@@ -226,6 +226,9 @@ fn refusal(area: &str, envelope: ErrorEnvelopeWire) -> RefusalDto {
         message: envelope.error.message,
         hint: envelope.error.hint,
         command: envelope.command,
+        operation_id: envelope.operation_id,
+        changed: envelope.changed,
+        next: envelope.next,
     }
 }
 
@@ -433,6 +436,9 @@ pub(crate) fn inspect_repository(
                     message: "Select the installed signed Vela v0.977.2 executable to classify this repository.".into(),
                     hint: None,
                     command: "vela --version".into(),
+                    operation_id: None,
+                    changed: None,
+                    next: None,
                 }),
             },
         ));
@@ -454,6 +460,9 @@ pub(crate) fn inspect_repository(
                     message: "Runtime execution is pinned to signed Vela v0.977.2 with the reviewed platform hash.".into(),
                     hint: Some("Choose the installed signed v0.977.2 release binary for this platform.".into()),
                     command: "vela --version".into(),
+                    operation_id: None,
+                    changed: None,
+                    next: None,
                 }),
             },
         ));
@@ -530,7 +539,8 @@ pub(crate) fn inspect_repository(
                 }
                 Envelope::Failure(integration_error) => {
                     let authoritative = integration_error.error.code.as_deref()
-                        == Some("native_integration_manifest_required");
+                        == Some("native_integration_manifest_required")
+                        || status_error.error.code.as_deref() == Some("repository_incomplete");
                     let classification = if authoritative {
                         RepositoryClassificationDto::VelaRepository
                     } else {
@@ -1147,7 +1157,7 @@ mod tests {
         ClaimsV1Wire, DsseEnvelopeWire, Envelope, IntegrationCheckV1Wire,
         IntegrationInspectionV1Wire, PLATFORM_RUNTIME_SHA256, PublicationWire, RUNTIME_VERSION,
         StatusV4Wire, SubmissionPayloadPreviewWire, SubmitResultV1Wire, VelaBinaryStateDto,
-        accepted_runtime_sha256, inspect_binary, parse_envelope, validate_claims,
+        accepted_runtime_sha256, inspect_binary, parse_envelope, refusal, validate_claims,
         validate_integration, validate_status, validate_submit_result,
     };
     use crate::ports::ProcessOutput;
@@ -1350,6 +1360,50 @@ mod tests {
             Envelope::Failure(error) => assert!(error.error.code.is_none()),
             Envelope::Success(_) => panic!("error fixture became a success"),
         }
+    }
+
+    #[test]
+    fn structured_incomplete_status_preserves_exact_recovery_fields() {
+        let operation_id = format!("vop_{}", "a".repeat(64));
+        let output = ProcessOutput {
+            success: false,
+            exit_code: Some(1),
+            stdout: serde_json::to_vec(&serde_json::json!({
+                "schema": "vela.error.v1",
+                "ok": false,
+                "command": "status",
+                "error": {
+                    "kind": "domain",
+                    "code": "repository_incomplete",
+                    "message": "one exact transaction requires recovery",
+                    "hint": "recover the named operation"
+                },
+                "request_id": "vrq_test",
+                "operation_id": operation_id,
+                "changed": false,
+                "retained": { "request_id": "vrq_test", "transaction_marker": false },
+                "next": "vela recover --repo <path> <operation-id> --json"
+            }))
+            .expect("error JSON"),
+            stderr: Vec::new(),
+            stdout_truncated: false,
+            stderr_truncated: false,
+        };
+        let error = match parse_envelope::<StatusV4Wire>(&output, "vela.status.v4", "status")
+            .expect("structured refusal")
+        {
+            Envelope::Failure(value) => value,
+            Envelope::Success(_) => panic!("incomplete repository became status success"),
+        };
+        let view = refusal("status", error);
+        assert_eq!(view.code.as_deref(), Some("repository_incomplete"));
+        assert_eq!(view.operation_id.as_deref(), Some(operation_id.as_str()));
+        assert_eq!(view.changed, Some(false));
+        assert!(
+            view.next
+                .as_deref()
+                .is_some_and(|value| value.starts_with("vela recover"))
+        );
     }
 
     #[cfg(any(

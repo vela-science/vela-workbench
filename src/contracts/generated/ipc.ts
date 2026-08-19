@@ -34,7 +34,7 @@ export type IntegrationItemDto = { kind: string, id: string, path: string, root:
 
 export type IntegrationDto = { authority_effect: string, manifest_root: string, documents_checked: number, repository: string, revision: string, profiles: Array<IntegrationItemDto>, bindings: Array<IntegrationItemDto>, methods: Array<IntegrationItemDto>, does_not_establish: Array<string>, };
 
-export type RefusalDto = { area: string, kind: string, code: string | null, message: string, hint: string | null, command: string, };
+export type RefusalDto = { area: string, kind: string, code: string | null, message: string, hint: string | null, command: string, operation_id: string | null, changed: boolean | null, next: string | null, };
 
 export type VelaInspectionDto = { binary: VelaBinaryDto | null, status: VelaStatusDto | null, claims: Array<ClaimDto>, integration: IntegrationDto | null, refusal: RefusalDto | null, };
 

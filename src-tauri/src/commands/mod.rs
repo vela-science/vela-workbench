@@ -385,6 +385,7 @@ pub(crate) async fn select_repository(
         .lock()
         .map_err(|_| state_error())?
         .remember_repository(Path::new(&snapshot.path))?;
+    remember_inspection_recovery(&snapshot, &state)?;
     Ok(Some(snapshot))
 }
 
@@ -406,12 +407,14 @@ pub(crate) async fn inspect_repository(
         }
         preferences.vela_binary_path()
     };
-    tauri::async_runtime::spawn_blocking(move || inspect_path(&canonical, binary_path.as_deref()))
-        .await
-        .map_err(|error| {
-            CommandErrorDto::new("internal", format!("repository task failed: {error}"))
-        })?
-        .map_err(Into::into)
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
+        inspect_path(&canonical, binary_path.as_deref())
+    })
+    .await
+    .map_err(|error| CommandErrorDto::new("internal", format!("repository task failed: {error}")))?
+    .map_err(CommandErrorDto::from)?;
+    remember_inspection_recovery(&snapshot, &state)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -1573,6 +1576,32 @@ fn remember_recovery(
             .recovery_operations
             .insert(repository.display().to_string(), operation_id.clone());
     }
+    Ok(())
+}
+
+fn remember_inspection_recovery(
+    snapshot: &RepositorySnapshotDto,
+    state: &State<'_, AppState>,
+) -> Result<(), CommandErrorDto> {
+    let Some(refusal) = &snapshot.vela.refusal else {
+        return Ok(());
+    };
+    if refusal.code.as_deref() != Some("repository_incomplete") {
+        return Ok(());
+    }
+    let operation_id = refusal.operation_id.as_ref().ok_or_else(|| {
+        CommandErrorDto::new(
+            "invalid_output",
+            "signed Vela reported repository_incomplete without an exact operation id",
+        )
+    })?;
+    ports::tranche_three::validate_operation_id(operation_id)?;
+    state
+        .privileged
+        .lock()
+        .map_err(|_| state_error())?
+        .recovery_operations
+        .insert(snapshot.path.clone(), operation_id.clone());
     Ok(())
 }
 

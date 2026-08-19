@@ -201,6 +201,9 @@ pub struct RefusalDto {
     pub message: String,
     pub hint: Option<String>,
     pub command: String,
+    pub operation_id: Option<String>,
+    pub changed: Option<bool>,
+    pub next: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]

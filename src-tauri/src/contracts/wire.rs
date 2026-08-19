@@ -40,6 +40,9 @@ pub(crate) struct ErrorEnvelopeWire {
     pub ok: bool,
     pub command: String,
     pub error: ErrorBodyWire,
+    pub operation_id: Option<String>,
+    pub changed: Option<bool>,
+    pub next: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

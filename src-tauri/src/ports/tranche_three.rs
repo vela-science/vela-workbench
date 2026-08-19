@@ -175,6 +175,22 @@ fn bounded_token(value: &str, label: &str) -> Result<(), PortError> {
     Ok(())
 }
 
+pub(crate) fn validate_operation_id(value: &str) -> Result<(), PortError> {
+    let hex = value.strip_prefix("vop_").ok_or_else(|| {
+        PortError::InvalidInput("recovery operation id must use the vop_ prefix".into())
+    })?;
+    if hex.len() != 64
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(PortError::InvalidInput(
+            "recovery operation id must contain one lowercase 64-character digest".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn relative_path(
     repository: &Path,
     selected: &Path,
@@ -1173,12 +1189,7 @@ pub(crate) fn preview_recovery(
     git: &GitSnapshotDto,
     operation_id: &str,
 ) -> Result<RecoveryPreviewDto, PortError> {
-    bounded_token(operation_id, "recovery operation id")?;
-    if !operation_id.starts_with("vop_") {
-        return Err(PortError::InvalidInput(
-            "Recovery requires the exact vop_ operation id".into(),
-        ));
-    }
+    validate_operation_id(operation_id)?;
     Ok(RecoveryPreviewDto { repository_path: repository.display().to_string(), operation_id: operation_id.into(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, argv: vec!["recover".into(), "--repo".into(), repository.display().to_string(), operation_id.into(), "--json".into()], warning: "Recovery applies only the signed Vela transaction journal for this exact operation. It never retries or chooses a Decision.".into() })
 }
 
@@ -1227,6 +1238,22 @@ pub(crate) fn recover_transaction(
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn recovery_operation_id_is_one_exact_lowercase_digest() {
+        assert!(validate_operation_id(&format!("vop_{}", "a".repeat(64))).is_ok());
+        for invalid in [
+            "vop_short".to_string(),
+            format!("vop_{}", "A".repeat(64)),
+            format!("op_{}", "a".repeat(64)),
+            format!("vop_{}", "g".repeat(64)),
+        ] {
+            assert!(
+                validate_operation_id(&invalid).is_err(),
+                "accepted {invalid}"
+            );
+        }
+    }
 
     fn git(root: &Path, args: &[&str]) {
         let status = Command::new("/usr/bin/git")

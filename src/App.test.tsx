@@ -188,6 +188,15 @@ describe("Vela Workbench product loop", () => {
       ready: true,
       note: "The selected checkout matches the handoff source remote and exact revision.",
     });
+    calls.previewRecovery.mockResolvedValue({
+      repository_path: snapshot.path,
+      operation_id: `vop_${"a".repeat(64)}`,
+      source_commit: snapshot.git.head_commit,
+      source_tree: snapshot.git.head_tree,
+      vela_binary_sha256: bootstrap.runtime.runtime_sha256,
+      argv: ["recover", "--repo", snapshot.path, `vop_${"a".repeat(64)}`, "--json"],
+      warning: "Recovery applies only the signed Vela transaction journal for this exact operation. It never retries or chooses a Decision.",
+    });
     calls.previewSubmissionDraft.mockResolvedValue(null);
     calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
     calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
@@ -253,6 +262,40 @@ describe("Vela Workbench product loop", () => {
     expect(await screen.findByText("Open exact source elsewhere")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Terminal" }));
     expect(calls.launchRepository).toHaveBeenCalledWith(snapshot.path, "terminal");
+  });
+
+  it("surfaces exact restart recovery from fresh signed repository inspection", async () => {
+    const operationId = `vop_${"a".repeat(64)}`;
+    const incomplete: RepositorySnapshotDto = {
+      ...snapshot,
+      classification_basis: "Repository authority was recognized, but status inspection refused.",
+      vela: {
+        ...snapshot.vela,
+        status: null,
+        claims: [],
+        refusal: {
+          area: "status",
+          kind: "domain",
+          code: "repository_incomplete",
+          message: "one exact transaction requires recovery",
+          hint: "recover the named operation",
+          command: "status",
+          operation_id: operationId,
+          changed: false,
+          next: "vela recover --repo <path> <operation-id> --json",
+        },
+      },
+    };
+    calls.selectRepository.mockResolvedValue(incomplete);
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Check & Decide" }));
+    expect(await screen.findByText(operationId)).toBeVisible();
+    expect(screen.getByText(/fresh signed Vela inspection found this unfinished Repository transaction/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review recovery" }));
+    expect(calls.previewRecovery).toHaveBeenCalledWith(snapshot.path, operationId);
+    expect(await screen.findByText(/Recovery applies only the signed Vela transaction journal/)).toBeVisible();
   });
 
   it("requires explicit native execution review and says the controls are not a sandbox", async () => {
