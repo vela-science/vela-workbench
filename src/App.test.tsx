@@ -71,6 +71,7 @@ const deepLinks = vi.hoisted(() => ({ observe: vi.fn() }));
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
 vi.mock("./lib/problem-handoff", () => ({ observeProblemHandoffUrls: deepLinks.observe }));
 import App from "./App";
+import { TrancheThree } from "./TrancheThree";
 
 const problemHandoff: ProblemHandoffDto = {
   schema: "vela.workbench.problem-handoff.v1",
@@ -288,6 +289,37 @@ describe("Vela Workbench product loop", () => {
     await user.click(screen.getByRole("button", { name: "Review recovery" }));
     expect(calls.previewRecovery).toHaveBeenCalledWith(snapshot.path, operationId);
     expect(await screen.findByText(/Recovery applies only the signed Vela transaction journal/)).toBeVisible();
+  });
+
+  it("clears a recovery preview when fresh inspection replaces the operation", async () => {
+    const user = userEvent.setup();
+    const operationA = `vop_${"a".repeat(64)}`;
+    const operationB = `vop_${"b".repeat(64)}`;
+    const withOperation = (operationId: string | null): RepositorySnapshotDto => ({
+      ...snapshot,
+      vela: {
+        ...snapshot.vela,
+        status: operationId ? null : snapshot.vela.status,
+        claims: operationId ? [] : snapshot.vela.claims,
+        recovery_operation_id: operationId,
+      },
+    });
+    const onRepositoryChanged = vi.fn(async () => {});
+    const rendered = render(
+      <TrancheThree snapshot={withOperation(operationA)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Review recovery" }));
+    expect(await screen.findByText(/Recovery applies only the signed Vela transaction journal/)).toBeVisible();
+    rendered.rerender(
+      <TrancheThree snapshot={withOperation(operationB)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    expect(await screen.findByText(operationB)).toBeVisible();
+    await waitFor(() => expect(screen.queryByText(/Recovery applies only the signed Vela transaction journal/)).not.toBeInTheDocument());
+    expect(screen.getByText("Exact transaction recovery")).toBeVisible();
+    rendered.rerender(
+      <TrancheThree snapshot={withOperation(null)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    await waitFor(() => expect(screen.queryByText("Exact transaction recovery")).not.toBeInTheDocument());
   });
 
   it("requires explicit native execution review and says the controls are not a sandbox", async () => {
