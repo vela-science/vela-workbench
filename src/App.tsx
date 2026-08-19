@@ -7,14 +7,15 @@ import {
 import type {
   BootstrapDto, CommandErrorDto, EvidenceExportPreviewDto, EvidenceItemDto,
   EvidenceSourceDto, LaunchKindDto, NativeExecPreviewDto, NativeExecProfileDto,
-  NativeExecResultDto, NativeOutputDto, NativeToolDto, RepositorySnapshotDto,
-  SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto,
-  VelaBinaryDto, WorktreePreviewDto,
+  NativeExecResultDto, NativeOutputDto, NativeToolDto, ProblemHandoffDto,
+  ProblemHandoffSourceDto, RepositorySnapshotDto, SubmissionImportPreviewDto,
+  SubmissionPreviewDto, SubmissionResultDto, VelaBinaryDto, WorktreePreviewDto,
 } from "./contracts/generated/ipc";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { WorkbenchTabs } from "./components/ui/tabs";
 import { workbench } from "./lib/workbench";
+import { observeProblemHandoffUrls } from "./lib/problem-handoff";
 import { TrancheThree } from "./TrancheThree";
 import { OpenGaussPilot } from "./OpenGaussPilot";
 import "./App.css";
@@ -54,6 +55,31 @@ function Refusal({ error, dismiss }: { error: CommandErrorDto; dismiss: () => vo
   return <section className="refusal" role="alert"><AlertTriangle aria-hidden="true" /><div>
     <strong>Action refused · {error.kind}</strong><p>{error.message}</p>{error.detail && <code>{error.detail}</code>}
   </div><Button variant="ghost" size="sm" onClick={dismiss}>Dismiss</Button></section>;
+}
+
+function ProblemContinuation({ handoff, source, sourceReview, choose, open, dismiss, busy }: {
+  handoff: ProblemHandoffDto;
+  source: ProblemHandoffSourceDto | null;
+  sourceReview: "idle" | "checking" | "failed";
+  choose: () => void;
+  open: () => void;
+  dismiss: () => void;
+  busy: boolean;
+}) {
+  const sourceLabel = source?.ready ? "exact source selected" : sourceReview === "checking" ? "checking selected source" : sourceReview === "failed" ? "source check failed" : "source selection required";
+  const sourceNote = source?.note ?? (sourceReview === "checking" ? "Checking the selected checkout against the exact source repository and revision." : sourceReview === "failed" ? "The selected checkout could not be checked. Review the refusal and choose the local source again." : "Choose the local checkout for the exact source repository and revision.");
+  return <section className="problem-continuation" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="problem-continuation-title">
+    <div className="problem-continuation-heading"><div><p className="eyebrow">problems.science handoff</p><h2 id="problem-continuation-title">Continue this Problem locally</h2></div><Badge tone={source?.ready ? "positive" : "warning"}>{sourceLabel}</Badge></div>
+    <dl className="fact-grid compact">
+      <Fact label="Problem" value={handoff.problem_url} mono />
+      <Fact label="Source repository" value={handoff.source_repository_url} mono />
+      <Fact label="Exact source ref" value={handoff.source_revision} mono />
+      <Fact label="Repository authority" value={handoff.authority_repository_url} mono />
+      <Fact label="Artifact references" value={handoff.artifact_paths.length ? handoff.artifact_paths.join(", ") : "None selected"} mono />
+      <Fact label="Authority effect" value={handoff.authority_effect} />
+    </dl>
+    <div className="continuation-status"><div><strong>{sourceNote}</strong><p>{handoff.boundary}</p></div><div className="button-cluster"><Button variant="ghost" onClick={dismiss}>Dismiss</Button><Button variant="secondary" onClick={open} disabled={busy}>Open exact Problem <ArrowUpRight size={14} /></Button><Button onClick={choose} loading={busy}>{source ? "Choose another source" : "Choose local source"}</Button></div></div>
+  </section>;
 }
 
 function Orient({ snapshot }: { snapshot: RepositorySnapshotDto }) {
@@ -97,9 +123,6 @@ function Orient({ snapshot }: { snapshot: RepositorySnapshotDto }) {
         <Fact label="Manifest root" value={short(integration.manifest_root, 16)} mono /><Fact label="Documents checked" value={String(integration.documents_checked)} /></dl>
       <p className="boundary-copy">This manifest locates source-native material. It does not establish scientific acceptance, authority, or Vela state.</p>
     </section>}
-    <section className="section-block handoff-block"><div><p className="eyebrow">Problems boundary</p><h2>No reviewed Problem locator</h2>
-      <p>Public discovery and shared coordination remain in problems.science. Workbench does not infer or search for a Problem.</p></div>
-      <Button variant="secondary" disabled>Open exact Problem <ArrowUpRight size={14} /></Button></section>
   </div>;
 }
 
@@ -189,18 +212,42 @@ function ReviewDraft(props: ReviewProps) {
 
 export default function App() {
   const [boot, setBoot] = useState<BootstrapDto | null>(null); const [selected, setSelected] = useState<RepositorySnapshotDto | null>(null); const [identity, setIdentity] = useState<VelaBinaryDto | null>(null); const [error, setError] = useState<CommandErrorDto | null>(null); const [busy, setBusy] = useState(false); const [launching, setLaunching] = useState<LaunchKindDto | null>(null);
+  const [handoff, setHandoff] = useState<ProblemHandoffDto | null>(null); const [handoffSource, setHandoffSource] = useState<ProblemHandoffSourceDto | null>(null); const [handoffSourceReview, setHandoffSourceReview] = useState<"idle" | "checking" | "failed">("idle");
   const [worktreeRef, setWorktreeRef] = useState("HEAD"); const [worktreePreview, setWorktreePreview] = useState<WorktreePreviewDto | null>(null); const [profile, setProfileState] = useState<NativeExecProfileDto>("git_diff_check"); const [tool, setTool] = useState<NativeToolDto | null>(null); const [execPreview, setExecPreview] = useState<NativeExecPreviewDto | null>(null); const [running, setRunning] = useState(false); const [runId, setRunId] = useState<string | null>(null); const [execResult, setExecResult] = useState<NativeExecResultDto | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItemDto[]>([]); const [capture, setCapture] = useState<CaptureView | null>(null); const [exclusions, setExclusions] = useState(""); const [redaction, setRedaction] = useState(false); const [derivedText, setDerivedText] = useState(""); const [exportPreview, setExportPreview] = useState<EvidenceExportPreviewDto | null>(null);
   const [assertion, setAssertion] = useState(""); const [claimType, setClaimTypeState] = useState<ClaimType>("computational"); const [producer, setProducer] = useState("agent:researcher"); const [caveat, setCaveat] = useState(""); const [requirement, setRequirement] = useState(""); const [selectedArtifacts, setSelectedArtifacts] = useState<string[]>([]); const [includeCheck, setIncludeCheck] = useState(true); const [submissionPreview, setSubmissionPreview] = useState<SubmissionPreviewDto | null>(null); const [importPreview, setImportPreview] = useState<SubmissionImportPreviewDto | null>(null); const [submissionResult, setSubmissionResult] = useState<SubmissionResultDto | null>(null);
   const activeUiRun = useRef<string | null>(null);
-  useEffect(() => { workbench.bootstrap().then(setBoot).catch((value) => setError(asError(value))); }, []); const recents = boot?.preferences.recent_repositories ?? []; const sourceBadge = useMemo(() => selected ? `${selected.git.branch ?? "detached"} · ${selected.git.dirty ? `${selected.git.changed_paths} changed` : "clean"}` : "", [selected]);
+  const handoffGeneration = useRef(0);
+  const handoffRevision = useRef<string | null>(null);
+  useEffect(() => { workbench.bootstrap().then(setBoot).catch((value) => setError(asError(value))); }, []);
+  useEffect(() => {
+    let active = true; let unlisten: (() => void) | undefined;
+    observeProblemHandoffUrls((url) => {
+      const generation = ++handoffGeneration.current;
+      workbench.reviewProblemHandoff(url).then((value) => {
+        if (!active || generation !== handoffGeneration.current) return;
+        handoffRevision.current = value.source_revision; setHandoff(value); setHandoffSource(null); setHandoffSourceReview("idle"); setWorktreeRef(value.source_revision); setError(null);
+      }).catch((value) => { if (active && generation === handoffGeneration.current) setError(asError(value)); });
+    }).then((stop) => { if (active) unlisten = stop; else stop(); }).catch((value) => { if (active) setError(asError(value)); });
+    return () => { active = false; unlisten?.(); };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    if (!handoff || !selected) { setHandoffSource(null); setHandoffSourceReview("idle"); return () => { active = false; }; }
+    setHandoffSource(null); setHandoffSourceReview("checking");
+    workbench.reviewProblemHandoffSource(selected.path, handoff).then((value) => { if (active) { setHandoffSource(value); setHandoffSourceReview("idle"); } }).catch((value) => { if (active) { setHandoffSource(null); setHandoffSourceReview("failed"); setError(asError(value)); } });
+    return () => { active = false; };
+  }, [handoff, selected]);
+  const recents = boot?.preferences.recent_repositories ?? []; const sourceBadge = useMemo(() => selected ? `${selected.git.branch ?? "detached"} · ${selected.git.dirty ? `${selected.git.changed_paths} changed` : "clean"}` : "", [selected]);
   function guard(task: () => Promise<void>) { setBusy(true); setError(null); task().catch((value) => setError(asError(value))).finally(() => setBusy(false)); }
-  function resetSourceBoundState() { setWorktreeRef("HEAD"); setWorktreePreview(null); setExecPreview(null); setExecResult(null); setEvidence([]); setCapture(null); setExclusions(""); setRedaction(false); setDerivedText(""); setExportPreview(null); setAssertion(""); setClaimTypeState("computational"); setProducer("agent:researcher"); setCaveat(""); setRequirement(""); setSelectedArtifacts([]); setIncludeCheck(true); setSubmissionPreview(null); setImportPreview(null); setSubmissionResult(null); }
+  function resetSourceBoundState() { setWorktreeRef(handoffRevision.current ?? "HEAD"); setWorktreePreview(null); setExecPreview(null); setExecResult(null); setEvidence([]); setCapture(null); setExclusions(""); setRedaction(false); setDerivedText(""); setExportPreview(null); setAssertion(""); setClaimTypeState("computational"); setProducer("agent:researcher"); setCaveat(""); setRequirement(""); setSelectedArtifacts([]); setIncludeCheck(true); setSubmissionPreview(null); setImportPreview(null); setSubmissionResult(null); }
   function choose() { guard(async () => { const result = await workbench.selectRepository(); if (result) { setSelected(result); resetSourceBoundState(); setBoot(await workbench.bootstrap()); } }); }
   function inspect(path: string) { guard(async () => { const result = await workbench.inspectRepository(path); resetSourceBoundState(); setSelected(result); }); }
   function selectVela() { guard(async () => { const result = await workbench.selectVelaBinary(); if (result) { setIdentity(result); setBoot(await workbench.bootstrap()); if (selected) setSelected(await workbench.inspectRepository(selected.path)); } }); }
   function clear() { activeUiRun.current = null; setRunId(null); setRunning(false); guard(async () => { const preferences = await workbench.clearRecents(); setBoot((current) => current ? { ...current, preferences } : current); setIdentity(null); setSelected(null); resetSourceBoundState(); setTool(null); }); }
   function launch(kind: LaunchKindDto) { if (!selected) return; setLaunching(kind); setError(null); workbench.launchRepository(selected.path, kind).catch((value) => setError(asError(value))).finally(() => setLaunching(null)); }
+  function openProblem() { if (!handoff) return; guard(async () => { await workbench.openProblemHandoff(handoff); }); }
+  function dismissHandoff() { handoffGeneration.current += 1; handoffRevision.current = null; setHandoff(null); setHandoffSource(null); setHandoffSourceReview("idle"); setWorktreeRef("HEAD"); }
   function setProfile(value: NativeExecProfileDto) { setProfileState(value); setTool(null); setExecPreview(null); }
   function selectTool() { guard(async () => { const result = await workbench.selectNativeTool(profile); if (result) { setTool(result); setExecPreview(null); } }); }
   function previewExec() { if (!selected) return; guard(async () => setExecPreview(await workbench.previewNativeExec(selected.path, profile))); }
@@ -220,7 +267,7 @@ export default function App() {
   function importSubmission() { if (!importPreview) return; guard(async () => { const result = await workbench.importSubmission(importPreview); if (result) { setSubmissionResult(result); setImportPreview(null); if (selected) setSelected(await workbench.inspectRepository(selected.path)); } }); }
   async function refreshAfterAuthorityMutation() { if (selected) setSelected(await workbench.inspectRepository(selected.path)); }
   return <div className="app-shell"><aside className="repo-rail"><div className="brand"><div className="brand-mark">V</div><div><strong>Vela</strong><span>Workbench</span></div></div><div className="rail-section"><div className="rail-label"><span>Repositories</span>{(recents.length > 0 || boot?.preferences.vela_binary_path) && <button onClick={clear} aria-label="Clear local repository, tool, run, and evidence choices" title="Clear all local choices"><Trash2 size={13} /></button>}</div><div className="repository-list">{recents.map((path) => <button className="repository-row" data-selected={selected?.path === path || undefined} key={path} onClick={() => inspect(path)} disabled={busy || running}><span className="classification-mark"><FolderGit2 size={15} /></span><span><strong>{path.split("/").slice(-1)[0]}</strong><small>{path.split("/").slice(-2).join("/")}</small></span><ChevronRight size={14} /></button>)}</div><Button variant="secondary" className="choose-button" onClick={choose} loading={busy} disabled={running}><FolderGit2 size={14} />Choose repository</Button></div><div className="rail-footer"><button onClick={selectVela} disabled={busy || running}><Settings2 size={15} /><span><strong>Vela runtime</strong><small>{identity?.version ?? (boot?.preferences.vela_binary_path ? "Signed v0.977.2 selected" : "Choose signed binary")}</small></span></button><p>Local work · explicit Repository authority</p></div></aside>
-    <main className="workspace">{error && <Refusal error={error} dismiss={() => setError(null)} />}{!selected ? <EmptyState choose={choose} busy={busy} /> : <><header className="source-header"><div className="source-title"><div className="source-icon"><FolderGit2 /></div><div><p className="eyebrow">Selected local source</p><h1>{selected.name}</h1><code>{selected.path}</code></div></div><div className="source-meta"><Badge tone={selected.git.dirty ? "warning" : "positive"}>{selected.git.dirty ? <AlertTriangle size={12} /> : <Check size={12} />}{sourceBadge}</Badge><span><GitBranch size={13} />{short(selected.git.head_commit, 12)}</span><Button variant="ghost" size="sm" onClick={() => inspect(selected.path)} loading={busy} disabled={running}><RefreshCw size={13} />Refresh</Button></div></header>
+    <main className="workspace">{error && <Refusal error={error} dismiss={() => setError(null)} />}{handoff && <ProblemContinuation handoff={handoff} source={handoffSource} sourceReview={handoffSourceReview} choose={choose} open={openProblem} dismiss={dismissHandoff} busy={busy} />}{!selected ? <EmptyState choose={choose} busy={busy} /> : <><header className="source-header"><div className="source-title"><div className="source-icon"><FolderGit2 /></div><div><p className="eyebrow">Selected local source</p><h1>{selected.name}</h1><code>{selected.path}</code></div></div><div className="source-meta"><Badge tone={selected.git.dirty ? "warning" : "positive"}>{selected.git.dirty ? <AlertTriangle size={12} /> : <Check size={12} />}{sourceBadge}</Badge><span><GitBranch size={13} />{short(selected.git.head_commit, 12)}</span><Button variant="ghost" size="sm" onClick={() => inspect(selected.path)} loading={busy} disabled={running}><RefreshCw size={13} />Refresh</Button></div></header>
       <WorkbenchTabs orient={<Orient snapshot={selected} />} execute={<Execute snapshot={selected} launch={launch} launching={launching} worktreeRef={worktreeRef} setWorktreeRef={setWorktreeRef} worktreePreview={worktreePreview} previewWorktree={previewWorktree} createWorktree={createWorktree} profile={profile} setProfile={setProfile} tool={tool} selectTool={selectTool} execPreview={execPreview} previewExec={previewExec} runExec={runExec} cancelExec={cancelExec} running={running} result={execResult} busy={busy} evidence={evidence} />} capture={<Capture evidence={evidence} result={execResult} selected={capture} setSelected={chooseCapture} chooseFile={chooseEvidence} exclusions={exclusions} setExclusions={setExclusions} redaction={redaction} setRedaction={setRedaction} derivedText={derivedText} setDerivedText={setDerivedText} previewExport={previewEvidenceExport} exportPreview={exportPreview} exportEvidence={exportEvidence} busy={busy} />} review={<ReviewDraft snapshot={selected} evidence={evidence} result={execResult} assertion={assertion} setAssertion={setAssertion} claimType={claimType} setClaimType={setClaimType} producer={producer} setProducer={setProducer} caveat={caveat} setCaveat={setCaveat} requirement={requirement} setRequirement={setRequirement} selectedArtifacts={selectedArtifacts} toggleArtifact={toggleArtifact} includeCheck={includeCheck} setIncludeCheck={setIncludeCheck} preview={submissionPreview} previewDraft={previewDraft} submitDraft={submitDraft} importPreview={importPreview} chooseImport={chooseImport} importSubmission={importSubmission} submissionResult={submissionResult} busy={busy} />} authority={<TrancheThree key={selected.path} snapshot={selected} evidence={evidence} onRepositoryChanged={refreshAfterAuthorityMutation} />} /></>}</main>
     {boot && <footer className="runtime-footer"><span>Interface <code>{short(boot.runtime.interface_commit)}</code></span><span>Runtime <code>{boot.runtime.runtime_version}</code></span><span>Scoped Check · attributed Repository Decision</span></footer>}</div>;
 }

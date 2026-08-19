@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BootstrapDto, RepositorySnapshotDto } from "./contracts/generated/ipc";
+import type { BootstrapDto, ProblemHandoffDto, RepositorySnapshotDto } from "./contracts/generated/ipc";
 
 const bootstrap: BootstrapDto = {
   preferences: { recent_repositories: [], vela_binary_path: "/usr/local/bin/vela" },
@@ -48,11 +48,11 @@ const snapshot: RepositorySnapshotDto = {
     integration: null, refusal: null,
   },
   entire: { cli_available: false, checkpoint_reference_count: 0, note: "No substitute store." },
-  reviewed_problem_url: null,
 };
 
 const calls = vi.hoisted(() => ({
   bootstrap: vi.fn(), selectRepository: vi.fn(), inspectRepository: vi.fn(),
+  reviewProblemHandoff: vi.fn(), openProblemHandoff: vi.fn(), reviewProblemHandoffSource: vi.fn(),
   selectVelaBinary: vi.fn(), clearRecents: vi.fn(), launchRepository: vi.fn(),
   previewWorktree: vi.fn(), createWorktree: vi.fn(), selectNativeTool: vi.fn(),
   previewNativeExec: vi.fn(), runNativeExec: vi.fn(), cancelNativeExec: vi.fn(),
@@ -66,9 +66,32 @@ const calls = vi.hoisted(() => ({
   previewRecovery: vi.fn(), recoverTransaction: vi.fn(),
   selectOpenGauss: vi.fn(), launchOpenGaussHandoff: vi.fn(), refreshOpenGaussHandoff: vi.fn(),
 }));
+const deepLinks = vi.hoisted(() => ({ observe: vi.fn() }));
 
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
+vi.mock("./lib/problem-handoff", () => ({ observeProblemHandoffUrls: deepLinks.observe }));
 import App from "./App";
+
+const problemHandoff: ProblemHandoffDto = {
+  schema: "vela.workbench.problem-handoff.v1",
+  handoff_url: `vela-workbench://continue?v=1&problem=https%3A%2F%2Fproblems.science%2Fproblems%2Ferdos-problems%2F94&source=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath.git&ref=${snapshot.git.head_commit}&repository=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath.git&artifact=result.txt`,
+  problem_url: "https://problems.science/problems/erdos-problems/94",
+  source_repository_url: "https://github.com/vela-science/math",
+  source_revision: snapshot.git.head_commit,
+  authority_repository_url: "https://github.com/vela-science/math",
+  artifact_paths: ["result.txt"],
+  authority_effect: "none",
+  boundary: "Browser-safe locators only. No authority is inferred.",
+};
+
+const nextProblemHandoff: ProblemHandoffDto = {
+  ...problemHandoff,
+  handoff_url: problemHandoff.handoff_url
+    .replace("erdos-problems%2F94", "formal-conjectures%2FIMO-1959-1")
+    .replace(snapshot.git.head_commit, "f".repeat(40)),
+  problem_url: "https://problems.science/problems/formal-conjectures/IMO-1959-1",
+  source_revision: "f".repeat(40),
+};
 
 const verification = {
   verification_record_id: "vvr_review", verification_record_root: "sha256:verification",
@@ -122,6 +145,7 @@ describe("Vela Workbench product loop", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
+    deepLinks.observe.mockResolvedValue(() => {});
     calls.bootstrap.mockResolvedValue(bootstrap);
     calls.selectRepository.mockResolvedValue(snapshot);
     calls.inspectRepository.mockResolvedValue(snapshot);
@@ -152,6 +176,18 @@ describe("Vela Workbench product loop", () => {
       kind_hint: "output", source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
       source_dirty: false, content_base64: "cmVzdWx0Cg==", content_utf8: "result\n", private: true,
     });
+    calls.reviewProblemHandoff.mockResolvedValue(problemHandoff);
+    calls.openProblemHandoff.mockResolvedValue({ target: problemHandoff.problem_url, owner: "default HTTPS browser" });
+    calls.reviewProblemHandoffSource.mockResolvedValue({
+      repository_path: snapshot.path,
+      source_repository_url: problemHandoff.source_repository_url,
+      source_revision: problemHandoff.source_revision,
+      selected_head: snapshot.git.head_commit,
+      remote_matches: true,
+      revision_matches: true,
+      ready: true,
+      note: "The selected checkout matches the handoff source remote and exact revision.",
+    });
     calls.previewSubmissionDraft.mockResolvedValue(null);
     calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
     calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
@@ -168,6 +204,44 @@ describe("Vela Workbench product loop", () => {
     expect(await screen.findByText("vela 0.977.2")).toBeVisible();
   });
 
+  it("reviews a browser handoff before binding the exact local source", async () => {
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    expect(await screen.findByText("Continue this Problem locally")).toBeVisible();
+    expect(calls.reviewProblemHandoff).toHaveBeenCalledWith(problemHandoff.handoff_url);
+    expect(screen.getByText(problemHandoff.problem_url)).toBeVisible();
+    expect(screen.getAllByText(problemHandoff.authority_repository_url)).toHaveLength(2);
+    expect(screen.getByText("result.txt")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    expect(await screen.findByText("exact source selected")).toBeVisible();
+    expect(calls.reviewProblemHandoffSource).toHaveBeenCalledWith(snapshot.path, problemHandoff);
+    await user.click(screen.getByRole("tab", { name: "Work" }));
+    expect(screen.getByLabelText("Exact target ref")).toHaveValue(problemHandoff.source_revision);
+    await user.click(screen.getByRole("button", { name: "Open exact Problem" }));
+    expect(calls.openProblemHandoff).toHaveBeenCalledWith(problemHandoff);
+  });
+
+  it("keeps the newest Problem ref when an older repository picker finishes", async () => {
+    let finishPicker!: (value: RepositorySnapshotDto | null) => void;
+    calls.selectRepository.mockReturnValue(new Promise((resolve) => { finishPicker = resolve; }));
+    calls.reviewProblemHandoff.mockImplementation(async (url: string) => url === nextProblemHandoff.handoff_url ? nextProblemHandoff : problemHandoff);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    await waitFor(() => expect(calls.selectRepository).toHaveBeenCalledTimes(1));
+    accept(nextProblemHandoff.handoff_url);
+    await screen.findByText(nextProblemHandoff.problem_url);
+    finishPicker(snapshot);
+    await screen.findByText("Vela Math");
+    await user.click(screen.getByRole("tab", { name: "Work" }));
+    expect(screen.getByLabelText("Exact target ref")).toHaveValue(nextProblemHandoff.source_revision);
+  });
+
   it("orients from a selected repository and exposes only exact handoffs", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -175,7 +249,6 @@ describe("Vela Workbench product loop", () => {
     await user.click(choices[choices.length - 1]);
     expect(await screen.findByText("Vela Math")).toBeVisible();
     expect(screen.getByText("A bounded accepted result.")).toBeVisible();
-    expect(screen.getByText("No reviewed Problem locator")).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(await screen.findByText("Open exact source elsewhere")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Terminal" }));

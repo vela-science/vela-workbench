@@ -1,8 +1,11 @@
 [[permission]]
-identifier = "workbench-tranche-three"
-description = "Allows the bundled local main window to invoke only enumerated observation, reviewed execution, explicit evidence, Submission, scoped Verification, attributed Repository Decision, exact recovery, preference, handoff, and bounded OpenGauss pilot commands."
+identifier = "workbench-product"
+description = "Allows the bundled local main window to invoke only enumerated observation, Problem continuation, reviewed execution, explicit evidence, Submission, scoped Verification, attributed Repository Decision, exact recovery, preference, handoff, and bounded OpenGauss pilot commands."
 commands.allow = [
   "bootstrap",
+  "review_problem_handoff",
+  "open_problem_handoff",
+  "review_problem_handoff_source",
   "select_repository",
   "inspect_repository",
   "select_vela_binary",

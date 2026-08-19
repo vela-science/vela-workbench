@@ -1,6 +1,6 @@
 # Vela Workbench
 
-Vela Workbench is a thin, local-first desktop shell for exact Git and Vela state. Tranche 3 preserves the bounded source, execution, evidence, and Submission surfaces, then completes the existing Repository loop with scoped Verification author/import, an exact Decision Inbox, and one explicitly confirmed attributed accept or reject through signed Vela. The bounded WB-OPENGAUSS-01 pilot adds verified detection of one external OpenGauss 0.2.2 executable, read-only inspection of one repository-owned project manifest, and explicit Terminal handoff without starting or embedding OpenGauss. Git owns source, Entire owns sessions/checkpoints, Problems owns shared coordination/presentation, OpenGauss owns its interactive work, and Vela Core owns scientific-state semantics and Repository authority.
+Vela Workbench is the local continuation of a scientific Problem. It lets a researcher choose the exact source checkout, work with explicit local tools, capture evidence, prepare a Result for Submission, record a scoped Check, and ask a Repository authority for an attributed Decision through signed Vela. Git owns source, Entire owns sessions/checkpoints, problems.science owns shared discovery and coordination, and Vela Core owns scientific-state semantics and Repository authority.
 
 ## Boundary
 
@@ -21,6 +21,16 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 
 The interface fixtures and executable gating name the same immutable signed v0.977.2 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate paths.
 
+## Continue a Problem locally
+
+An installed Workbench accepts one browser-safe custom URL:
+
+```text
+vela-workbench://continue?v=1&problem=https%3A%2F%2Fproblems.science%2Fproblems%2Ferdos-problems%2F94&source=https%3A%2F%2Fgithub.com%2Fvela-science%2Flean-proofs&ref=0123456789012345678901234567890123456789&repository=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath&artifact=Erdos%2FProblem94.lean
+```
+
+The handoff carries only an exact `https://problems.science/problems/...` URL, an HTTPS source repository, a full Git object ID, an HTTPS authority Repository, and up to 32 explicit source-relative artifact references. Rust rejects unknown fields, credentials, query-bearing repository locators, symbolic refs, traversal, duplicates, and oversized input. Workbench then requires the researcher to select a local checkout and separately matches both its fetch remote and HEAD. A mismatch is never marked source-ready and never automatically clones, switches, uploads, executes, authenticates, or implies authority. The requested ref is prefilled only for the existing detached-worktree preview.
+
 ## Development
 
 Prerequisites are Bun and the checked-in Rust toolchain. From the repository root:
@@ -31,7 +41,7 @@ bun run check
 bun run tauri build
 ```
 
-`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Tranche 3 packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
+`bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
 
 ## Security and deletion
 

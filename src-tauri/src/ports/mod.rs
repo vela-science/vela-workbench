@@ -4,6 +4,7 @@ pub(crate) mod git;
 pub(crate) mod launch;
 pub(crate) mod native_exec;
 pub(crate) mod opengauss;
+pub(crate) mod problem_handoff;
 mod process;
 pub(crate) mod tranche_three;
 pub(crate) mod vela;

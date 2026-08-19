@@ -6,7 +6,7 @@ use crate::contracts::{GitRemoteDto, LaunchKindDto, LaunchResultDto};
 
 use super::{PortError, ProcessSpec, git, run_bounded};
 
-fn https_remote(raw: &str) -> Result<String, PortError> {
+pub(crate) fn https_remote(raw: &str) -> Result<String, PortError> {
     let candidate = if let Some(rest) = raw.strip_prefix("git@") {
         let (host, path) = rest.split_once(':').ok_or_else(|| {
             PortError::Unsupported("SSH remote does not use the host:path form".into())
@@ -75,7 +75,7 @@ fn launch_local(cwd: &Path, app: &str, target: &str) -> Result<(), PortError> {
 }
 
 #[cfg(target_os = "macos")]
-fn launch_https(cwd: &Path, target: &str) -> Result<(), PortError> {
+pub(crate) fn launch_https(cwd: &Path, target: &str) -> Result<(), PortError> {
     launch_open(cwd, &[target], "HTTPS destination")
 }
 
@@ -87,7 +87,7 @@ fn launch_local(_cwd: &Path, _app: &str, _target: &str) -> Result<(), PortError>
 }
 
 #[cfg(not(target_os = "macos"))]
-fn launch_https(_cwd: &Path, _target: &str) -> Result<(), PortError> {
+pub(crate) fn launch_https(_cwd: &Path, _target: &str) -> Result<(), PortError> {
     Err(PortError::Unsupported(
         "this Workbench build has implemented exact HTTPS handoff on macOS only".into(),
     ))
