@@ -14,7 +14,7 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 - Tauri CLI `2.11.4`, Tauri API `2.11.1`
 - Rust `1.97.1`, edition 2024
 - Bun lockfile with React `19.2.8`, TypeScript `5.8.3`, Vite `7.3.6`, Tailwind `4.3.3`, Base UI `1.7.0`
-- Signed Core release `v0.977.2`, commit `c1a34373c2cdd937ed34fd128174a66fa12be71a`, tree `b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55`, Protocol 1 manifest root `sha256:50c8dc2d99a40b535f9b03e9759fb463a64d6e942feba4655c8f7192171cece6`
+- Signed Core release `v0.977.2`, commit `c1a34373c2cdd937ed34fd128174a66fa12be71a`, tree `b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55`, Protocol 1 manifest root `sha256:631f11584930c74e9fa2e868bec7015c70c7fa6cfe20e28112b5e4c4501e1d4c`
 - macOS arm64 runtime SHA-256 `286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2`; release manifest SHA-256 `afaf60b88eb5eeafeefda9b1edd4080f137eb86ad64964f1d70cdf3762c3183a`
 - Linux x86_64 runtime SHA-256 `3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd`; release manifest SHA-256 `7d3af1bf4ae81bcbf8cee190e34d53c0fa0af2e6ce3c1d785a36fc10169cf603`
 - WB-OPENGAUSS-01 observed against `math-inc/OpenGauss` version `0.2.2`, commit `f87633900ae185b8037bf451a914fe7eeae1eb08`, tree `aa3768f7cf5dd06d01a972bc8ed789f7b43246fb`; OpenGauss is never bundled

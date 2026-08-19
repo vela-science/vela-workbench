@@ -7,7 +7,7 @@ Immutable release source:
 - Annotated tag object: `2b0c90a2ec4350da38236ad3788278309bd07119`
 - Release commit: `c1a34373c2cdd937ed34fd128174a66fa12be71a`
 - Release tree: `b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55`
-- Protocol 1 manifest root: `sha256:50c8dc2d99a40b535f9b03e9759fb463a64d6e942feba4655c8f7192171cece6`
+- Protocol 1 manifest root: `sha256:631f11584930c74e9fa2e868bec7015c70c7fa6cfe20e28112b5e4c4501e1d4c`
 - Protocol manifest file SHA-256: `50c8dc2d99a40b535f9b03e9759fb463a64d6e942feba4655c8f7192171cece6`
 
 Signed distribution evidence:
