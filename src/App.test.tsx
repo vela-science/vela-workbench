@@ -6,11 +6,11 @@ import type { BootstrapDto, RepositorySnapshotDto } from "./contracts/generated/
 const bootstrap: BootstrapDto = {
   preferences: { recent_repositories: [], vela_binary_path: "/usr/local/bin/vela" },
   runtime: {
-    interface_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
-    interface_tree: "55768612b82b93a4a01bb5aeddeb937dff678e4a",
-    runtime_version: "vela 0.977.1",
-    runtime_commit: "0e057c0debcff775a3deb56150ceaccfd4707b41",
-    runtime_sha256: "a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948",
+    interface_commit: "c1a34373c2cdd937ed34fd128174a66fa12be71a",
+    interface_tree: "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55",
+    runtime_version: "vela 0.977.2",
+    runtime_commit: "c1a34373c2cdd937ed34fd128174a66fa12be71a",
+    runtime_sha256: "286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2",
     read_only: false,
     tranche: "3",
     mutation_scope: "explicit_verification_and_attributed_repository_decision",
@@ -35,7 +35,7 @@ const snapshot: RepositorySnapshotDto = {
     entire_checkpoints: [],
   },
   vela: {
-    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.1", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
+    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.2", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
     status: {
       repository_id: "vela-math", repository_name: "Vela Math", repository_profile_root: "profile-root",
       repository_root: "repository-root", origin_root: "origin-root", authority_keyset_root: "keys-root",
@@ -164,7 +164,7 @@ describe("Vela Workbench Tranche 3", () => {
     render(<App />);
     expect(await screen.findByText("Start from sovereign source")).toBeVisible();
     expect(screen.getByText("Private files, credentials, and evidence stay local.")).toBeVisible();
-    expect(await screen.findByText("vela 0.977.1")).toBeVisible();
+    expect(await screen.findByText("vela 0.977.2")).toBeVisible();
   });
 
   it("orients from a selected repository and exposes only exact handoffs", async () => {
