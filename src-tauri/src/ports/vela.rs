@@ -13,26 +13,27 @@ use sha2::{Digest, Sha256};
 
 use crate::contracts::{
     ClaimDto, ClaimsV1Wire, ErrorEnvelopeWire, IntegrationCheckV1Wire, IntegrationDto,
-    IntegrationInspectionV1Wire, IntegrationItemDto, PublicationWire, RefusalDto,
-    RepositoryClassificationDto, StatusCountsDto, StatusV4Wire, SubmissionArtifactDraftDto,
-    SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto,
-    SubmitResultV1Wire, VelaBinaryDto, VelaBinaryStateDto, VelaInspectionDto, VelaStatusDto,
+    IntegrationInspectionV1Wire, IntegrationItemDto, PublicationWire, RecoveryInspectionV1Wire,
+    RefusalDto, RepositoryClassificationDto, StatusCountsDto, StatusV4Wire,
+    SubmissionArtifactDraftDto, SubmissionDraftDto, SubmissionImportPreviewDto,
+    SubmissionPreviewDto, SubmissionResultDto, SubmitResultV1Wire, VelaBinaryDto,
+    VelaBinaryStateDto, VelaInspectionDto, VelaStatusDto,
 };
 
 use super::{
     PortError, ProcessOutput, ProcessSpec, ensure_not_truncated, process::utf8, run_bounded,
 };
 
-pub(crate) const INTERFACE_COMMIT: &str = "c1a34373c2cdd937ed34fd128174a66fa12be71a";
-pub(crate) const INTERFACE_TREE: &str = "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55";
-pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.2";
-pub(crate) const RUNTIME_COMMIT: &str = "c1a34373c2cdd937ed34fd128174a66fa12be71a";
+pub(crate) const INTERFACE_COMMIT: &str = "1c1abe8f365f16803fea889bf9280877992a6d02";
+pub(crate) const INTERFACE_TREE: &str = "66bb4cb5173ff50beeef45c03fa11060e1e9e377";
+pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.3";
+pub(crate) const RUNTIME_COMMIT: &str = "1c1abe8f365f16803fea889bf9280877992a6d02";
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
-    "286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2";
+    "3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad";
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
-    "3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd";
+    "89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0";
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "linux", target_arch = "x86_64")
@@ -199,6 +200,7 @@ fn parse_envelope<T: DeserializeOwned>(
                 "{expected_command} error envelope tags disagree with process status"
             )));
         }
+        validate_error_envelope(&envelope)?;
         return Ok(Envelope::Failure(envelope));
     }
     if schema != expected_schema {
@@ -216,6 +218,74 @@ fn parse_envelope<T: DeserializeOwned>(
         PortError::Parse(format!("{expected_command} JSON shape is invalid: {error}"))
     })?;
     Ok(Envelope::Success(envelope))
+}
+
+fn validate_error_envelope(envelope: &ErrorEnvelopeWire) -> Result<(), PortError> {
+    match (
+        envelope.request_id.as_deref(),
+        envelope.operation_id.as_deref(),
+        envelope.changed,
+        envelope.retained.as_ref(),
+        envelope.next.as_deref(),
+    ) {
+        (None, None, None, None, None) => Ok(()),
+        (Some(request), Some(operation), Some(false), Some(retained), Some(next))
+            if request == operation
+                && retained.request_id == request
+                && !retained.transaction_marker
+                && envelope.error.hint.as_deref() == Some(next) =>
+        {
+            Ok(())
+        }
+        _ => Err(PortError::Parse(
+            "Vela error envelope zero-delta fields are inconsistent".into(),
+        )),
+    }
+}
+
+fn validate_recovery_inspection(
+    inspection: RecoveryInspectionV1Wire,
+    repository: &Path,
+) -> Result<Option<String>, PortError> {
+    let canonical = std::fs::canonicalize(repository).map_err(|error| {
+        PortError::InvalidInput(format!(
+            "resolve repository before recovery inspection validation: {error}"
+        ))
+    })?;
+    if inspection.schema != "vela.recovery-inspection.v1"
+        || !inspection.ok
+        || inspection.command != "recover.inspect"
+        || inspection.authority_effect != "none"
+        || Path::new(&inspection.repository_path) != canonical
+        || inspection.repository_id.trim().is_empty()
+    {
+        return Err(PortError::Parse(
+            "recovery inspection envelope tags or repository identity are invalid".into(),
+        ));
+    }
+    match (
+        inspection.recovery_required,
+        inspection.operation_id,
+        inspection.recovery_state,
+        inspection.next_command,
+    ) {
+        (false, None, None, None) => Ok(None),
+        (true, Some(operation_id), Some(state), Some(next))
+            if super::valid_recovery_operation_id(&operation_id)
+                && matches!(
+                    state.as_str(),
+                    "prepared" | "committed" | "installing" | "installed" | "committed_conflict"
+                )
+                && next.starts_with("vela recover --repo ")
+                && next.ends_with(&format!(" {operation_id} --json")) =>
+        {
+            Ok(Some(operation_id))
+        }
+        _ => Err(PortError::Parse(
+            "recovery inspection fields do not form the required clean or exact-operation state"
+                .into(),
+        )),
+    }
 }
 
 fn refusal(area: &str, envelope: ErrorEnvelopeWire) -> RefusalDto {
@@ -433,13 +503,14 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unavailable".into(),
                     code: None,
-                    message: "Select the installed signed Vela v0.977.2 executable to classify this repository.".into(),
+                    message: "Select the installed signed Vela v0.977.3 executable to classify this repository.".into(),
                     hint: None,
                     command: "vela --version".into(),
                     operation_id: None,
                     changed: None,
                     next: None,
                 }),
+                recovery_operation_id: None,
             },
         ));
     };
@@ -457,21 +528,67 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unsupported".into(),
                     code: None,
-                    message: "Runtime execution is pinned to signed Vela v0.977.2 with the reviewed platform hash.".into(),
-                    hint: Some("Choose the installed signed v0.977.2 release binary for this platform.".into()),
+                    message: "Runtime execution is pinned to signed Vela v0.977.3 with the reviewed platform hash.".into(),
+                    hint: Some("Choose the installed signed v0.977.3 release binary for this platform.".into()),
                     command: "vela --version".into(),
                     operation_id: None,
                     changed: None,
                     next: None,
                 }),
+                recovery_operation_id: None,
             },
         ));
     }
     let binary_path = Path::new(&binary.path);
 
+    let recovery_output = run_json(
+        binary_path,
+        repository,
+        &["recover", "--repo", "<repo>", "--inspect", "--json"],
+    )?;
+    let recovery = match parse_envelope::<RecoveryInspectionV1Wire>(
+        &recovery_output,
+        "vela.recovery-inspection.v1",
+        "recover.inspect",
+    )? {
+        Envelope::Success(inspection) => {
+            let operation_id = validate_recovery_inspection(inspection, repository)?;
+            if let Some(operation_id) = operation_id {
+                return Ok((
+                    RepositoryClassificationDto::VelaRepository,
+                    "Signed Vela found one exact interrupted Repository operation; explicit recovery is required before other authority work.".into(),
+                    VelaInspectionDto {
+                        binary: Some(binary),
+                        status: None,
+                        claims: Vec::new(),
+                        integration: None,
+                        refusal: None,
+                        recovery_operation_id: Some(operation_id),
+                    },
+                ));
+            }
+            None
+        }
+        Envelope::Failure(error) => Some(error),
+    };
+
     let status_output = run_json(binary_path, repository, &["status", "<repo>", "--json"])?;
     match parse_envelope::<StatusV4Wire>(&status_output, "vela.status.v4", "status")? {
         Envelope::Success(status) => {
+            if let Some(recovery_error) = recovery {
+                return Ok((
+                    RepositoryClassificationDto::VelaRepository,
+                    "Signed Vela recognized the Repository, but exact recovery inspection refused; authority actions remain unavailable.".into(),
+                    VelaInspectionDto {
+                        binary: Some(binary),
+                        status: None,
+                        claims: Vec::new(),
+                        integration: None,
+                        refusal: Some(refusal("recovery inspection", recovery_error)),
+                        recovery_operation_id: None,
+                    },
+                ));
+            }
             let status = validate_status(status)?;
             let claims_output = run_json(
                 binary_path,
@@ -492,6 +609,7 @@ pub(crate) fn inspect_repository(
                     claims,
                     integration: None,
                     refusal,
+                    recovery_operation_id: None,
                 },
             ))
         }
@@ -534,13 +652,13 @@ pub(crate) fn inspect_repository(
                             claims: Vec::new(),
                             integration: Some(validate_integration(check, inspection)?),
                             refusal: None,
+                            recovery_operation_id: None,
                         },
                     ))
                 }
                 Envelope::Failure(integration_error) => {
                     let authoritative = integration_error.error.code.as_deref()
-                        == Some("native_integration_manifest_required")
-                        || status_error.error.code.as_deref() == Some("repository_incomplete");
+                        == Some("native_integration_manifest_required");
                     let classification = if authoritative {
                         RepositoryClassificationDto::VelaRepository
                     } else {
@@ -559,7 +677,15 @@ pub(crate) fn inspect_repository(
                             status: None,
                             claims: Vec::new(),
                             integration: None,
-                            refusal: Some(refusal("status", status_error)),
+                            refusal: Some(match recovery {
+                                Some(recovery_error)
+                                    if recovery_error.error.kind != "not_found" =>
+                                {
+                                    refusal("recovery inspection", recovery_error)
+                                }
+                                _ => refusal("status", status_error),
+                            }),
+                            recovery_operation_id: None,
                         },
                     ))
                 }
@@ -1156,9 +1282,10 @@ mod tests {
     use super::{
         ClaimsV1Wire, DsseEnvelopeWire, Envelope, IntegrationCheckV1Wire,
         IntegrationInspectionV1Wire, PLATFORM_RUNTIME_SHA256, PublicationWire, RUNTIME_VERSION,
-        StatusV4Wire, SubmissionPayloadPreviewWire, SubmitResultV1Wire, VelaBinaryStateDto,
-        accepted_runtime_sha256, inspect_binary, parse_envelope, refusal, validate_claims,
-        validate_integration, validate_status, validate_submit_result,
+        RecoveryInspectionV1Wire, StatusV4Wire, SubmissionPayloadPreviewWire, SubmitResultV1Wire,
+        VelaBinaryStateDto, accepted_runtime_sha256, inspect_binary, parse_envelope,
+        validate_claims, validate_integration, validate_recovery_inspection, validate_status,
+        validate_submit_result,
     };
     use crate::ports::ProcessOutput;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -1186,7 +1313,7 @@ mod tests {
     #[test]
     fn frozen_status_and_claims_validate_together() {
         let status = match parse_envelope::<StatusV4Wire>(
-            &fixture("../fixtures/core/v0.977.2/status-math-v09772.json"),
+            &fixture("../fixtures/core/v0.977.3/status-math-v09773.json"),
             "vela.status.v4",
             "status",
         )
@@ -1196,7 +1323,7 @@ mod tests {
             Envelope::Failure(_) => panic!("fixture unexpectedly refused"),
         };
         let claims = match parse_envelope::<ClaimsV1Wire>(
-            &fixture("../fixtures/core/v0.977.2/claims-math-v09772.json"),
+            &fixture("../fixtures/core/v0.977.3/claims-math-v09773.json"),
             "vela.claims.v1",
             "claims",
         )
@@ -1211,7 +1338,7 @@ mod tests {
     #[test]
     fn frozen_integration_preserves_non_authority() {
         let check = match parse_envelope::<IntegrationCheckV1Wire>(
-            &fixture("../fixtures/core/v0.977.2/integration-check-lean-proofs-v09772.json"),
+            &fixture("../fixtures/core/v0.977.3/integration-check-lean-proofs-v09773.json"),
             "vela.cli.integration-check.v1",
             "integration check",
         )
@@ -1221,7 +1348,7 @@ mod tests {
             Envelope::Failure(_) => panic!("fixture unexpectedly refused"),
         };
         let inspection = match parse_envelope::<IntegrationInspectionV1Wire>(
-            &fixture("../fixtures/core/v0.977.2/integration-inspect-lean-proofs-v09772.json"),
+            &fixture("../fixtures/core/v0.977.3/integration-inspect-lean-proofs-v09773.json"),
             "vela.cli.integration-inspection.v1",
             "integration inspect",
         )
@@ -1240,11 +1367,30 @@ mod tests {
     }
 
     #[test]
-    fn frozen_release_manifests_bind_v09772_source_and_platform_binaries() {
+    fn frozen_clean_recovery_inspection_preserves_non_authority() {
+        let inspection = match parse_envelope::<RecoveryInspectionV1Wire>(
+            &fixture("../fixtures/core/v0.977.3/recovery-inspection-clean-math-v09773.json"),
+            "vela.recovery-inspection.v1",
+            "recover.inspect",
+        )
+        .expect("recovery inspection envelope")
+        {
+            Envelope::Success(value) => value,
+            Envelope::Failure(_) => panic!("clean recovery inspection unexpectedly refused"),
+        };
+        assert!(!inspection.recovery_required);
+        assert!(inspection.operation_id.is_none());
+        assert!(inspection.recovery_state.is_none());
+        assert!(inspection.next_command.is_none());
+        assert_eq!(inspection.authority_effect, "none");
+    }
+
+    #[test]
+    fn frozen_release_manifests_bind_v09773_source_and_platform_binaries() {
         let manifest = |name: &str| -> serde_json::Value {
             let bytes = std::fs::read(
                 Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../fixtures/core/v0.977.2/release")
+                    .join("../fixtures/core/v0.977.3/release")
                     .join(name),
             )
             .expect("release manifest fixture");
@@ -1254,30 +1400,30 @@ mod tests {
         let linux = manifest("vela-linux-x86_64.tar.gz.release-manifest.json");
         for value in [&macos, &linux] {
             assert_eq!(value["schema"], "vela.release-bundle-manifest.v1");
-            assert_eq!(value["release"]["version"], "0.977.2");
+            assert_eq!(value["release"]["version"], "0.977.3");
             assert_eq!(
                 value["source"]["commit"],
-                "c1a34373c2cdd937ed34fd128174a66fa12be71a"
+                "1c1abe8f365f16803fea889bf9280877992a6d02"
             );
             assert_eq!(
                 value["source"]["tree"],
-                "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55"
+                "66bb4cb5173ff50beeef45c03fa11060e1e9e377"
             );
         }
         assert_eq!(
             macos["binary"]["sha256"],
-            "sha256:286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2"
+            "sha256:3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad"
         );
         assert_eq!(
             linux["binary"]["sha256"],
-            "sha256:3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd"
+            "sha256:89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0"
         );
     }
 
     #[test]
     fn frozen_signed_submission_v3_binds_exact_transport_artifact() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../fixtures/core/v0.977.2/submission-bundle");
+            .join("../fixtures/core/v0.977.3/submission-bundle");
         let envelope_bytes = fs::read(root.join("submission.json")).expect("signed envelope");
         assert_eq!(
             digest_hex(&envelope_bytes),
@@ -1363,47 +1509,139 @@ mod tests {
     }
 
     #[test]
-    fn structured_incomplete_status_preserves_exact_recovery_fields() {
+    fn recovery_inspection_carries_one_exact_restart_operation() {
+        let repository = tempfile::tempdir().expect("repository");
+        let repository_path = repository
+            .path()
+            .canonicalize()
+            .expect("canonical repository")
+            .display()
+            .to_string();
         let operation_id = format!("vop_{}", "a".repeat(64));
         let output = ProcessOutput {
-            success: false,
-            exit_code: Some(1),
+            success: true,
+            exit_code: Some(0),
             stdout: serde_json::to_vec(&serde_json::json!({
-                "schema": "vela.error.v1",
-                "ok": false,
-                "command": "status",
-                "error": {
-                    "kind": "domain",
-                    "code": "repository_incomplete",
-                    "message": "one exact transaction requires recovery",
-                    "hint": "recover the named operation"
-                },
-                "request_id": "vrq_test",
+                "schema": "vela.recovery-inspection.v1",
+                "ok": true,
+                "command": "recover.inspect",
+                "repository_path": repository_path,
+                "repository_id": "vrp_fixture",
+                "recovery_required": true,
                 "operation_id": operation_id,
-                "changed": false,
-                "retained": { "request_id": "vrq_test", "transaction_marker": false },
-                "next": "vela recover --repo <path> <operation-id> --json"
+                "recovery_state": "installed",
+                "next_command": format!("vela recover --repo '{}' {operation_id} --json", repository_path),
+                "authority_effect": "none"
             }))
-            .expect("error JSON"),
+            .expect("inspection JSON"),
             stderr: Vec::new(),
             stdout_truncated: false,
             stderr_truncated: false,
         };
-        let error = match parse_envelope::<StatusV4Wire>(&output, "vela.status.v4", "status")
-            .expect("structured refusal")
+        let inspection = match parse_envelope::<RecoveryInspectionV1Wire>(
+            &output,
+            "vela.recovery-inspection.v1",
+            "recover.inspect",
+        )
+        .expect("structured inspection")
         {
-            Envelope::Failure(value) => value,
-            Envelope::Success(_) => panic!("incomplete repository became status success"),
+            Envelope::Success(value) => value,
+            Envelope::Failure(_) => panic!("inspection became refusal"),
         };
-        let view = refusal("status", error);
-        assert_eq!(view.code.as_deref(), Some("repository_incomplete"));
-        assert_eq!(view.operation_id.as_deref(), Some(operation_id.as_str()));
-        assert_eq!(view.changed, Some(false));
-        assert!(
-            view.next
-                .as_deref()
-                .is_some_and(|value| value.starts_with("vela recover"))
+        assert_eq!(
+            validate_recovery_inspection(inspection, repository.path())
+                .expect("exact recovery operation"),
+            Some(operation_id.clone())
         );
+    }
+
+    #[test]
+    fn recovery_inspection_rejects_partial_or_terminal_states() {
+        let repository = tempfile::tempdir().expect("repository");
+        let repository_path = repository
+            .path()
+            .canonicalize()
+            .expect("canonical repository")
+            .display()
+            .to_string();
+        let operation_id = format!("vop_{}", "a".repeat(64));
+        for (required, operation, state, next) in [
+            (false, Some(operation_id.clone()), None, None),
+            (
+                true,
+                Some(operation_id.clone()),
+                Some("completed".to_string()),
+                Some(format!(
+                    "vela recover --repo '{}' {operation_id} --json",
+                    repository_path
+                )),
+            ),
+        ] {
+            let inspection = RecoveryInspectionV1Wire {
+                schema: "vela.recovery-inspection.v1".into(),
+                ok: true,
+                command: "recover.inspect".into(),
+                repository_path: repository_path.clone(),
+                repository_id: "vrp_fixture".into(),
+                recovery_required: required,
+                operation_id: operation,
+                recovery_state: state,
+                next_command: next,
+                authority_effect: "none".into(),
+            };
+            assert!(validate_recovery_inspection(inspection, repository.path()).is_err());
+        }
+    }
+
+    #[test]
+    fn inconsistent_zero_delta_error_fields_fail_closed() {
+        let operation_id = format!("vop_{}", "a".repeat(64));
+        let base = serde_json::json!({
+            "schema": "vela.error.v1",
+            "ok": false,
+            "command": "status",
+            "error": {
+                "kind": "domain",
+                "code": "repository_incomplete",
+                "message": "request refused",
+                "hint": "retry exactly"
+            },
+            "request_id": operation_id,
+            "operation_id": operation_id,
+            "changed": false,
+            "retained": { "request_id": operation_id, "transaction_marker": false },
+            "next": "retry exactly"
+        });
+        let mut cases = Vec::new();
+        let mut changed = base.clone();
+        changed["changed"] = serde_json::json!(true);
+        cases.push(changed);
+        let mut retained = base.clone();
+        retained["retained"]["request_id"] = serde_json::json!("vop_mismatch");
+        cases.push(retained);
+        let mut hint = base.clone();
+        hint["error"]["hint"] = serde_json::json!("different");
+        cases.push(hint);
+        let mut partial = base;
+        partial
+            .as_object_mut()
+            .expect("object")
+            .remove("operation_id");
+        cases.push(partial);
+        for value in cases {
+            let output = ProcessOutput {
+                success: false,
+                exit_code: Some(1),
+                stdout: serde_json::to_vec(&value).expect("error JSON"),
+                stderr: Vec::new(),
+                stdout_truncated: false,
+                stderr_truncated: false,
+            };
+            assert!(
+                parse_envelope::<StatusV4Wire>(&output, "vela.status.v4", "status").is_err(),
+                "accepted {value}"
+            );
+        }
     }
 
     #[cfg(any(
@@ -1411,8 +1649,8 @@ mod tests {
         all(target_os = "linux", target_arch = "x86_64")
     ))]
     #[test]
-    fn runtime_policy_accepts_only_signed_v09772_for_this_platform() {
-        assert_eq!(RUNTIME_VERSION, "vela 0.977.2");
+    fn runtime_policy_accepts_only_signed_v09773_for_this_platform() {
+        assert_eq!(RUNTIME_VERSION, "vela 0.977.3");
         assert!(accepted_runtime_sha256(PLATFORM_RUNTIME_SHA256));
         assert!(!accepted_runtime_sha256(
             "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c"
@@ -1430,7 +1668,7 @@ mod tests {
         fs::write(
             &executable,
             format!(
-                "#!/bin/sh\ntouch '{}'\necho vela 0.977.2\n",
+                "#!/bin/sh\ntouch '{}'\necho vela 0.977.3\n",
                 marker.display()
             ),
         )

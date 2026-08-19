@@ -70,6 +70,14 @@ impl PrivilegedState {
         self.opengauss_generation
     }
 
+    fn replace_inspection_recovery(&mut self, repository: &str, operation_id: Option<&str>) {
+        self.recovery_operations.remove(repository);
+        if let Some(operation_id) = operation_id {
+            self.recovery_operations
+                .insert(repository.to_string(), operation_id.to_string());
+        }
+    }
+
     fn remember_run(&mut self, result: NativeExecResultDto, preview: NativeExecPreviewDto) {
         self.completed_runs
             .insert(result.run_id.clone(), CompletedRun { result, preview });
@@ -1355,7 +1363,7 @@ pub(crate) async fn preview_submission_draft(
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
             "vela_unavailable",
-            "select the pinned signed Vela v0.977.2 runtime before reviewing a Submission",
+            "select the pinned signed Vela v0.977.3 runtime before reviewing a Submission",
         )
     })?;
     let git = ports::git::inspect(&canonical)?;
@@ -1553,7 +1561,7 @@ fn tranche_three_context(
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
             "vela_unavailable",
-            "select the exact signed Vela v0.977.2 runtime before using Vela Repository actions",
+            "select the exact signed Vela v0.977.3 runtime before using Vela Repository actions",
         )
     })?;
     let git = ports::git::inspect(&repository)?;
@@ -1583,25 +1591,14 @@ fn remember_inspection_recovery(
     snapshot: &RepositorySnapshotDto,
     state: &State<'_, AppState>,
 ) -> Result<(), CommandErrorDto> {
-    let Some(refusal) = &snapshot.vela.refusal else {
-        return Ok(());
-    };
-    if refusal.code.as_deref() != Some("repository_incomplete") {
-        return Ok(());
+    let mut privileged = state.privileged.lock().map_err(|_| state_error())?;
+    if let Some(operation_id) = &snapshot.vela.recovery_operation_id {
+        ports::tranche_three::validate_operation_id(operation_id)?;
     }
-    let operation_id = refusal.operation_id.as_ref().ok_or_else(|| {
-        CommandErrorDto::new(
-            "invalid_output",
-            "signed Vela reported repository_incomplete without an exact operation id",
-        )
-    })?;
-    ports::tranche_three::validate_operation_id(operation_id)?;
-    state
-        .privileged
-        .lock()
-        .map_err(|_| state_error())?
-        .recovery_operations
-        .insert(snapshot.path.clone(), operation_id.clone());
+    privileged.replace_inspection_recovery(
+        &snapshot.path,
+        snapshot.vela.recovery_operation_id.as_deref(),
+    );
     Ok(())
 }
 
@@ -1971,7 +1968,7 @@ pub(crate) async fn preview_recovery(
     if remembered.as_deref() != Some(operation_id.as_str()) {
         return Err(CommandErrorDto::new(
             "not_selected",
-            "recovery operation was not surfaced by a structured repository_incomplete refusal in this process",
+            "recovery operation was not surfaced by a structured current-operation refusal or signed recovery inspection in this process",
         ));
     }
     ports::tranche_three::preview_recovery(&repository, &binary, &git, &operation_id)
@@ -2174,6 +2171,26 @@ mod tests {
         let _ = result;
         assert!(!may_store);
         assert!(state.completed_runs.is_empty());
+    }
+
+    #[test]
+    fn fresh_inspection_replaces_and_revokes_recovery_capability() {
+        let repository = "/private/tmp/recovery-repository";
+        let first = format!("vop_{}", "a".repeat(64));
+        let second = format!("vop_{}", "b".repeat(64));
+        let mut state = PrivilegedState::default();
+        state.replace_inspection_recovery(repository, Some(&first));
+        assert_eq!(
+            state.recovery_operations.get(repository).map(String::as_str),
+            Some(first.as_str())
+        );
+        state.replace_inspection_recovery(repository, Some(&second));
+        assert_eq!(
+            state.recovery_operations.get(repository).map(String::as_str),
+            Some(second.as_str())
+        );
+        state.replace_inspection_recovery(repository, None);
+        assert!(!state.recovery_operations.contains_key(repository));
     }
 
     #[test]

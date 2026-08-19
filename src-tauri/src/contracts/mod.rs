@@ -2,7 +2,8 @@ mod wire;
 
 pub(crate) use wire::{
     ClaimsV1Wire, ErrorEnvelopeWire, IntegrationCheckV1Wire, IntegrationInspectionV1Wire,
-    IntegrationItemWire, PublicationWire, StatusV4Wire, SubmitResultV1Wire,
+    IntegrationItemWire, PublicationWire, RecoveryInspectionV1Wire, StatusV4Wire,
+    SubmitResultV1Wire,
 };
 
 use serde::{Deserialize, Serialize};
@@ -213,6 +214,7 @@ pub struct VelaInspectionDto {
     pub claims: Vec<ClaimDto>,
     pub integration: Option<IntegrationDto>,
     pub refusal: Option<RefusalDto>,
+    pub recovery_operation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]

@@ -52,7 +52,7 @@ fn exact_binary(binary: &Path) -> Result<crate::contracts::VelaBinaryDto, PortEr
     let identity = super::vela::inspect_binary(binary)?;
     if identity.state != crate::contracts::VelaBinaryStateDto::SignedRuntimeBaseline {
         return Err(PortError::Unsupported(
-            "Vela Repository actions require the exact signed Vela v0.977.2 runtime".into(),
+            "Vela Repository actions require the exact signed Vela v0.977.3 runtime".into(),
         ));
     }
     Ok(identity)
@@ -176,16 +176,9 @@ fn bounded_token(value: &str, label: &str) -> Result<(), PortError> {
 }
 
 pub(crate) fn validate_operation_id(value: &str) -> Result<(), PortError> {
-    let hex = value.strip_prefix("vop_").ok_or_else(|| {
-        PortError::InvalidInput("recovery operation id must use the vop_ prefix".into())
-    })?;
-    if hex.len() != 64
-        || !hex
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
+    if !super::valid_recovery_operation_id(value) {
         return Err(PortError::InvalidInput(
-            "recovery operation id must contain one lowercase 64-character digest".into(),
+            "recovery operation id must use vop_ with one lowercase 64-character digest".into(),
         ));
     }
     Ok(())
@@ -1007,7 +1000,7 @@ pub(crate) fn preview_decision(
         DecisionActionDto::Reject => current.standing_delta.if_reject.clone(),
     };
     Ok(DecisionPreviewDto { request, repository_path: repository.display().to_string(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, entry: current, performer_kind,
-        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.2 exposes the actual principal only in the Decision result/readback.".into(),
+        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.3 exposes the actual principal only in the Decision result/readback.".into(),
         authentication: "local_os_session".into(), transaction_signer: "repository_authority".into(), ssh_agent_forwarded: std::env::var_os("SSH_AUTH_SOCK").is_some(), argv, expected_successor,
         warning: "This is the only authority-changing step. Verification outcome remains separate. Vela authenticates the Repository principal, evaluates policy, signs the transaction, and rejects any stale entry root.".into() })
 }
@@ -1324,7 +1317,7 @@ mod tests {
     #[test]
     fn verification_import_subject_must_match_current_inbox_roots() {
         let value: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/core/v0.977.2/decision-inbox-v3.json"
+            "../../../fixtures/core/v0.977.3/decision-inbox-v3.json"
         ))
         .expect("frozen Inbox JSON");
         let inbox = parse_decision_inbox_value(&value).expect("parse frozen Inbox");
@@ -1393,7 +1386,7 @@ mod tests {
     #[test]
     fn frozen_decision_inbox_preserves_dependency_disclosure_without_inference() {
         let value: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/core/v0.977.2/decision-inbox-v3.json"
+            "../../../fixtures/core/v0.977.3/decision-inbox-v3.json"
         ))
         .expect("frozen Inbox JSON");
         let parsed = parse_decision_inbox_value(&value).expect("parse frozen Inbox");

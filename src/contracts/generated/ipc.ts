@@ -36,7 +36,7 @@ export type IntegrationDto = { authority_effect: string, manifest_root: string, 
 
 export type RefusalDto = { area: string, kind: string, code: string | null, message: string, hint: string | null, command: string, operation_id: string | null, changed: boolean | null, next: string | null, };
 
-export type VelaInspectionDto = { binary: VelaBinaryDto | null, status: VelaStatusDto | null, claims: Array<ClaimDto>, integration: IntegrationDto | null, refusal: RefusalDto | null, };
+export type VelaInspectionDto = { binary: VelaBinaryDto | null, status: VelaStatusDto | null, claims: Array<ClaimDto>, integration: IntegrationDto | null, refusal: RefusalDto | null, recovery_operation_id: string | null, };
 
 export type EntireAvailabilityDto = { cli_available: boolean, checkpoint_reference_count: number, note: string, };
 

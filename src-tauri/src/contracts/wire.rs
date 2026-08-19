@@ -40,9 +40,17 @@ pub(crate) struct ErrorEnvelopeWire {
     pub ok: bool,
     pub command: String,
     pub error: ErrorBodyWire,
+    pub request_id: Option<String>,
     pub operation_id: Option<String>,
     pub changed: Option<bool>,
+    pub retained: Option<ErrorRetainedWire>,
     pub next: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct ErrorRetainedWire {
+    pub request_id: String,
+    pub transaction_marker: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,6 +59,21 @@ pub(crate) struct ErrorBodyWire {
     pub code: Option<String>,
     pub message: String,
     pub hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RecoveryInspectionV1Wire {
+    pub schema: String,
+    pub ok: bool,
+    pub command: String,
+    pub repository_path: String,
+    pub repository_id: String,
+    pub recovery_required: bool,
+    pub operation_id: Option<String>,
+    pub recovery_state: Option<String>,
+    pub next_command: Option<String>,
+    pub authority_effect: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
