@@ -9,8 +9,15 @@ find a Problem -> continue in its source repository -> retain a Result and evide
 ```
 
 It does not test scientific novelty, field adoption, general Protocol maturity,
-or institutional independence. A check, merge, signature, account, or imported
-record is never a Repository Decision.
+institutional independence, comparative throughput, or research productivity,
+and it compares Vela against no other system. A check, merge, signature,
+account, or imported record is never a Repository Decision.
+
+Separating an attempt from a scoped Check is not unique to this loop; public
+research registries already do it. What this pilot exercises is the path from a
+retained Result to a separately performed scoped Check, an attributed
+Repository Decision, its Event and Standing, a later correction, and public
+readback reconstructible from Git.
 
 ## Gate before invitations
 
