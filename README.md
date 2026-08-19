@@ -45,7 +45,7 @@ bun run tauri build
 
 `bun run contracts` regenerates `src/contracts/generated/ipc.ts` from Rust. The Rust test suite refuses drift between the generated file and its source. Packages are qualified on macOS only; the open GLib dependency alert prevents claiming a Linux/BSD distribution until the supported Tauri stack can move to GLib 0.20 or later and is fully requalified.
 
-For a researcher install, first run, signed/notarized macOS release, clean-account check, rollback, and reconstruction, use [INSTALL.md](INSTALL.md). `bun run tauri build` alone produces a development artifact; `bun run release:macos` is the fail-closed distribution entry point.
+For a researcher install, first run, signed/notarized macOS release, clean-account check, rollback, and reconstruction, use [INSTALL.md](INSTALL.md). The bounded four-role external run and content-free evidence checklist are in [PILOT.md](PILOT.md). `bun run tauri build` alone produces a development artifact; `bun run release:macos` is the fail-closed distribution entry point.
 
 ## Security and deletion
 
