@@ -635,11 +635,15 @@ describe("Vela Workbench product loop", () => {
 
   it("previews authority identity and separates Verification from actual Decision Standing", async () => {
     const user = userEvent.setup(); render(<App />);
-    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
-    await user.click(choices[choices.length - 1]);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local Repository" }));
+    expect(await screen.findByRole("button", { name: "Continue to Repository" })).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Check & Decide" }));
     await user.click(screen.getByRole("button", { name: "Refresh exact roots" }));
-    await user.type(screen.getByLabelText("Bounded scientific reason"), "Evidence supports the bounded claim.");
+    fireEvent.change(screen.getByLabelText("Bounded scientific reason"), { target: { value: "Evidence supports the bounded claim." } });
     await user.click(screen.getByRole("button", { name: "Review exact attributed Decision" }));
     expect(await screen.findByText(/Resolved by signed Vela during execution/)).toBeVisible();
     expect(screen.getByText(/same provider and source tree/)).toBeVisible();
@@ -648,6 +652,17 @@ describe("Vela Workbench product loop", () => {
     await user.click(screen.getByRole("button", { name: "Execute after native confirmation" }));
     expect(await screen.findByText("Actual Decision / Event / Standing readback")).toBeVisible();
     expect(screen.getByText(/Verification outcome is not this Standing/)).toBeVisible();
+    expect(screen.getByText(/Repository state is committed locally until Git publishes this checkout/)).toBeVisible();
+    expect(screen.getAllByText(problemHandoff.problem_url)).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Open Repository Terminal" }));
+    expect(calls.launchRepository).toHaveBeenCalledWith(snapshot.path, "terminal");
+    await user.click(screen.getByRole("button", { name: "Return to exact Problem" }));
+    expect(calls.openProblemHandoff).toHaveBeenCalledWith(problemHandoff);
+    calls.reviewProblemHandoff.mockImplementation(async (url: string) => url === nextProblemHandoff.handoff_url ? nextProblemHandoff : problemHandoff);
+    accept(nextProblemHandoff.handoff_url);
+    expect(await screen.findByText(nextProblemHandoff.problem_url)).toBeVisible();
+    expect(screen.queryByText("Actual Decision / Event / Standing readback")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Return to exact Problem" })).not.toBeInTheDocument();
   });
 
   it("keeps OpenGauss workflows behind an explicit interactive-only handoff", async () => {
