@@ -15,7 +15,7 @@ Assumptions validated by the governing handoff:
 - Single-user local macOS desktop use; no server, remote WebView, multi-tenancy, or inbound network surface.
 - Selected repositories and Git metadata are untrusted input and may contain private material.
 - The bundled renderer is less trusted than Rust; it receives validated DTOs only.
-- Signed Vela v0.977.1 and system Git are trusted only within fixed command surfaces. A user-selected native tool is intentionally executable but receives only the reviewed profile argv and cleared environment.
+- Signed Vela v0.977.2 and system Git are trusted only within fixed command surfaces. A user-selected native tool is intentionally executable but receives only the reviewed profile argv and cleared environment.
 - Compromise of the same macOS user account and mutations made after explicit handoff are outside the app isolation guarantee.
 
 Out of scope: Core release production, Verification, Decision, authority actions, provider mutation, Linux/BSD packaging, provider applications, editor/terminal behavior after handoff, and public Problems/Web services. No open service-context question currently changes the ranking.

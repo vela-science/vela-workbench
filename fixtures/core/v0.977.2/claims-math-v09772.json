@@ -1,0 +1,58 @@
+{
+  "command": "claims",
+  "generation": 1,
+  "indexed": {
+    "accepted": 3,
+    "unassessed": 0
+  },
+  "items": [
+    {
+      "assertion": "At lean-proofs commit 423344341fbfdf4f8f684a302c5d05379125e7dc, Erdos94.variants.sum_multiplicity proves that for every finite planar point set P, the sum over its distinct determined distances of the unordered-pair distance multiplicities equals P.card.choose 2, matching Formal Conjectures commit 94a278e06a8bcbc2e4f2935e491c0c115ec832e0. For occurrence resolution only, the exact occurrence Erdos94.erdos_94.variants.sum_multiplicity is associated with problem:erdos:94 under resolver entity root sha256:32f6e98a826da23c12c7cfcb8853e4712de130136c59f0454bd115c3fdb1e6b1. That occurrence is one of four Erdős 94 declarations Formal Conjectures publishes, and this identity does not establish the cubic distance-multiplicity conjecture.",
+      "assertion_kind": "theoretical",
+      "claim_id": "vcl_6763ba247d40303408a268b226c3e27d7a753b63fca3eb0de99619d509346bfb",
+      "claim_root": "sha256:aaaf6ebbf510ad08e6376c5958d23f4eb7704944f7d37916eee4ae253e809b3b",
+      "created_at": "2026-08-18T18:37:55Z",
+      "origin_era": "post_origin",
+      "path": "records/claims/sha256/aaaf6ebbf510ad08e6376c5958d23f4eb7704944f7d37916eee4ae253e809b3b.json",
+      "readable": true,
+      "revision": 3,
+      "standing": "accepted"
+    },
+    {
+      "assertion": "Under the retained exact public compiled-cache replay, Lean 4.22.0 elaborates the scoped Erdos 887 repaired source with the four expected sorry warnings.",
+      "assertion_kind": "computational",
+      "claim_id": "vcl_8ab5a917ccc077f1971f630bae293a0e5bbed3156320e0b7223ffbd75d7b0464",
+      "claim_root": "sha256:ba44090062b79a6232cc5844e0fe4f3b11e63ae3b65bb971ff3fd9fc6ffe0a8a",
+      "created_at": "2026-08-17T18:33:59Z",
+      "origin_era": "post_origin",
+      "path": "records/claims/sha256/ba44090062b79a6232cc5844e0fe4f3b11e63ae3b65bb971ff3fd9fc6ffe0a8a.json",
+      "readable": true,
+      "revision": 1,
+      "standing": "accepted"
+    },
+    {
+      "assertion": "At Formal Conjectures commit 59f30aa314ba225fcd9268723ce8291616df1ab0, the Lean development starfleet/erdos-321 establishes a two-sided asymptotic bound on extremalSize, which denotes the same quantity as Formal Conjectures' Erdos321.R and therefore supplies a candidate answer for the exact occurrence Erdos321.erdos_321.variants.isTheta, not a proof of it. For occurrence resolution only, the exact occurrences Erdos321.erdos_321 and Erdos321.erdos_321.variants.isTheta are associated with problem:erdos:321 under resolver root sha256:a9d6787719c5c8069a9e14ade0f5a62975410272e6cd1583865b282d1d8669dd. At the exact retained Erdős 321 source revisions, the terminal theorem and structural comparison do not establish implication to either fixed Nat.log variant.",
+      "assertion_kind": "theoretical",
+      "claim_id": "vcl_b9c6915de55e15c69d06b9aeed786b0e632986374a347d77ff447ad244f67a2e",
+      "claim_root": "sha256:58f97ba8a90d23d4655c4b71051c6bdd4723c0454f31f4ed3cb3e95b0a6c8b15",
+      "created_at": "2026-08-17T18:33:12Z",
+      "origin_era": "post_origin",
+      "path": "records/claims/sha256/58f97ba8a90d23d4655c4b71051c6bdd4723c0454f31f4ed3cb3e95b0a6c8b15.json",
+      "readable": true,
+      "revision": 2,
+      "standing": "accepted"
+    }
+  ],
+  "next_cursor": null,
+  "ok": true,
+  "order": "claim_id_asc",
+  "origin_claims": 0,
+  "origin_id": "vro_a6a12da8762f1252",
+  "repository_id": "3d012325-3768-4b95-a385-c94e9f2a57a6",
+  "repository_root": "sha256:a956b84c437202e5a02cc9e036a621bd14a302b34a75758115730bdbb77c52a4",
+  "returned": 3,
+  "schema": "vela.claims.v1",
+  "status": "all",
+  "total": 3,
+  "unreadable_returned": 0
+}

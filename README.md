@@ -14,12 +14,12 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 - Tauri CLI `2.11.4`, Tauri API `2.11.1`
 - Rust `1.97.1`, edition 2024
 - Bun lockfile with React `19.2.8`, TypeScript `5.8.3`, Vite `7.3.6`, Tailwind `4.3.3`, Base UI `1.7.0`
-- Signed Core release `v0.977.1`, commit `0e057c0debcff775a3deb56150ceaccfd4707b41`, tree `55768612b82b93a4a01bb5aeddeb937dff678e4a`, Protocol 1 manifest root `sha256:448e7e80ac1ead40045d87df51f4352e80091c09ceae6e5acea250795b5ff9ed`
-- macOS arm64 runtime SHA-256 `a4f5594b2777b265f6d58296cc8e9efd85d0a72c82b49c0fce4805438ed46948`; release manifest SHA-256 `6942a9f215909a55e849c7722a49ea961ef6259294c9f8ca36f944d6fd88d884`
-- Linux x86_64 runtime SHA-256 `3c25344f2a636a803d82fd7cf663e5638778d1121198301f478ff3dcc18f0270`; release manifest SHA-256 `6cd034646b57b1c5e8c3d85a95a882a3221f7277c543f6bdde69fc9757b423e4`
+- Signed Core release `v0.977.2`, commit `c1a34373c2cdd937ed34fd128174a66fa12be71a`, tree `b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55`, Protocol 1 manifest root `sha256:631f11584930c74e9fa2e868bec7015c70c7fa6cfe20e28112b5e4c4501e1d4c`
+- macOS arm64 runtime SHA-256 `286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2`; release manifest SHA-256 `afaf60b88eb5eeafeefda9b1edd4080f137eb86ad64964f1d70cdf3762c3183a`
+- Linux x86_64 runtime SHA-256 `3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd`; release manifest SHA-256 `7d3af1bf4ae81bcbf8cee190e34d53c0fa0af2e6ce3c1d785a36fc10169cf603`
 - WB-OPENGAUSS-01 observed against `math-inc/OpenGauss` version `0.2.2`, commit `f87633900ae185b8037bf451a914fe7eeae1eb08`, tree `aa3768f7cf5dd06d01a972bc8ed789f7b43246fb`; OpenGauss is never bundled
 
-The prior merged-interface/runtime split is closed: interface fixtures and executable gating now name the same immutable signed v0.977.1 release. Each supported build accepts exactly one platform binary hash and one runtime version; v0.977.0 is not an alternate path.
+The interface fixtures and executable gating name the same immutable signed v0.977.2 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate paths.
 
 ## Development
 

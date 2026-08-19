@@ -3,14 +3,14 @@
   "ok": true,
   "command": "status",
   "repository": {
-    "id": "8138c6da-46c4-47ee-b493-5bbfbec09b1e",
+    "id": "3d012325-3768-4b95-a385-c94e9f2a57a6",
     "name": "Vela Mathematics Program",
-    "profile_root": "sha256:6ed6ddcc5882a6e069212734bb11a18c19a75b83859c5ff194c632029c917aa4"
+    "profile_root": "sha256:e1607a49a7e89ba709bac1c3b1d0abffaedfd3cf851b0f027945d73adaea9674"
   },
   "git": {
     "role": "repository_head",
-    "commit": "508b39adac51e6823ea0d666e789a1e016b20227",
-    "tree": "b66cf2eb5960ebd538be8044b5a5f2eedef23cc3"
+    "commit": "84b118ed1622d34e5a1431821cf35dca91fb8720",
+    "tree": "87e5915227e618d30cfc6530ff218ec0b09ba7cb"
   },
   "integrity": {
     "replay": "verified",
@@ -19,28 +19,28 @@
     "blockers_by_code": {}
   },
   "roots": {
-    "origin": "sha256:be556724950533252af6aea398836ffe35717ffcda1f7d609fa6735413941e14",
-    "repository": "sha256:6dc64b5f3df0305825bd6e3161775449ab0606e44d6e72a4ed6795c5f2cc86b0",
-    "authority_keyset": "sha256:43762983e444ec2a8b7fc906b05e45d66e9af469024db0691324707d5306deb1",
-    "authority_policy": "sha256:4d6d5e283577dde287b743871a67cb84bf1346d61ad8786c320d70f1af7e8965"
+    "origin": "sha256:a6a12da8762f1252afe1ac1c75361ef54c583924a2b88474232ead6227873dca",
+    "repository": "sha256:a956b84c437202e5a02cc9e036a621bd14a302b34a75758115730bdbb77c52a4",
+    "authority_keyset": "sha256:370c9924a2e25716403b7f771d5ebf90e86f6ac96ad4351063e02e5a3f974081",
+    "authority_policy": "sha256:a18d5c0938a934d73d297ae073c2fae7bf045462b4d8e9a3fc7f66b4ad5366aa"
   },
   "counts": {
     "claims": 3,
     "accepted_claims": 3,
     "pending_claims": 0,
     "pending_review": 0,
-    "accepted_review": 5,
+    "accepted_review": 6,
     "rejected_review": 0,
     "withdrawn_review": 0,
-    "submissions": 5,
+    "submissions": 6,
     "verifications": 6,
-    "artifacts": 8
+    "artifacts": 10
   },
   "decision_inbox": {
     "pending_count": 0,
     "protocol_ready_count": 0,
     "protocol_blocked_count": 0,
-    "projection_root": "sha256:8bc257080498dd5006e57b959977e8f1ad76a6dd01301bb939eb661874c7e006",
+    "projection_root": "sha256:93ce4f9dc6d9b62ccf09eac8e4ff214afc24cb817a45f2311ec9999d79bfcdc1",
     "first_entry_root": null
   },
   "actions": {
