@@ -1467,7 +1467,7 @@ fn tranche_three_context(
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
             "vela_unavailable",
-            "select the exact signed Vela v0.977.2 runtime before using Tranche 3",
+            "select the exact signed Vela v0.977.2 runtime before using Vela Repository actions",
         )
     })?;
     let git = ports::git::inspect(&repository)?;
