@@ -52,7 +52,7 @@ fn exact_binary(binary: &Path) -> Result<crate::contracts::VelaBinaryDto, PortEr
     let identity = super::vela::inspect_binary(binary)?;
     if identity.state != crate::contracts::VelaBinaryStateDto::SignedRuntimeBaseline {
         return Err(PortError::Unsupported(
-            "Tranche 3 requires the exact signed Vela v0.977.2 runtime".into(),
+            "Vela Repository actions require the exact signed Vela v0.977.2 runtime".into(),
         ));
     }
     Ok(identity)
@@ -76,7 +76,7 @@ fn run_cli(
     let after = exact_binary(binary)?;
     if before.path != after.path || before.sha256 != after.sha256 {
         return Err(PortError::Unsupported(
-            "selected Vela executable changed during Tranche 3 command".into(),
+            "selected Vela executable changed during a Repository action".into(),
         ));
     }
     ensure_not_truncated(&output, expected_command)?;
@@ -122,7 +122,7 @@ fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str, PortError> {
     value
         .get(key)
         .and_then(Value::as_str)
-        .ok_or_else(|| PortError::Parse(format!("Tranche 3 JSON omitted string {key}")))
+        .ok_or_else(|| PortError::Parse(format!("Vela JSON omitted string {key}")))
 }
 
 fn optional_string(value: &Value, key: &str) -> Result<Option<String>, PortError> {
@@ -130,7 +130,7 @@ fn optional_string(value: &Value, key: &str) -> Result<Option<String>, PortError
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(text)) => Ok(Some(text.clone())),
         _ => Err(PortError::Parse(format!(
-            "Tranche 3 JSON field {key} was not a nullable string"
+            "Vela JSON field {key} was not a nullable string"
         ))),
     }
 }
@@ -139,21 +139,21 @@ fn object<'a>(value: &'a Value, key: &str) -> Result<&'a Value, PortError> {
     value
         .get(key)
         .filter(|item| item.is_object())
-        .ok_or_else(|| PortError::Parse(format!("Tranche 3 JSON omitted object {key}")))
+        .ok_or_else(|| PortError::Parse(format!("Vela JSON omitted object {key}")))
 }
 
 fn array<'a>(value: &'a Value, key: &str) -> Result<&'a Vec<Value>, PortError> {
     value
         .get(key)
         .and_then(Value::as_array)
-        .ok_or_else(|| PortError::Parse(format!("Tranche 3 JSON omitted array {key}")))
+        .ok_or_else(|| PortError::Parse(format!("Vela JSON omitted array {key}")))
 }
 
 fn strings(value: &Value, key: &str) -> Result<Vec<String>, PortError> {
     let items = array(value, key)?;
     if items.len() > MAX_ITEMS {
         return Err(PortError::Parse(format!(
-            "Tranche 3 JSON {key} exceeded {MAX_ITEMS}"
+            "Vela JSON {key} exceeded {MAX_ITEMS}"
         )));
     }
     items
@@ -161,7 +161,7 @@ fn strings(value: &Value, key: &str) -> Result<Vec<String>, PortError> {
         .map(|item| {
             item.as_str()
                 .map(str::to_owned)
-                .ok_or_else(|| PortError::Parse(format!("Tranche 3 JSON {key} item was not text")))
+                .ok_or_else(|| PortError::Parse(format!("Vela JSON {key} item was not text")))
         })
         .collect()
 }

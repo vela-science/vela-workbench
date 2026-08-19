@@ -118,7 +118,7 @@ const opengaussPreview = {
   boundary: "Workbench opens Terminal at the exact project root. It does not start OpenGauss, type a slash command, observe hidden model transport, or ingest OpenGauss session state.",
 } as const;
 
-describe("Vela Workbench Tranche 3", () => {
+describe("Vela Workbench product loop", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
@@ -152,6 +152,7 @@ describe("Vela Workbench Tranche 3", () => {
       kind_hint: "output", source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree,
       source_dirty: false, content_base64: "cmVzdWx0Cg==", content_utf8: "result\n", private: true,
     });
+    calls.previewSubmissionDraft.mockResolvedValue(null);
     calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
     calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
     calls.executeDecision.mockResolvedValue({ command_succeeded: true, decision_committed: true, successor_matches_preview: true, events_match_receipt: true, action: "accept", proposal_id: entry.proposal_id, entry_root: entry.entry_root, decision_plan_root: "sha256:plan", event_ids: ["vev_decision", "vev_applied"], authority_record_id: "var_authority", actual_performer: "agent:reviewer", actual_performer_kind: "agent", actual_authority_principal: "local:fixture", authentication: "local", transaction_signer: "fixture signer", scientific_state_changed: true, refusal: null, readback: { status: "accepted", decision_event_id: "vev_decision", applied_event_id: "vev_applied", standing: "accepted", claim_id: entry.claim_id, claim_root: entry.claim_root, repository_root: "sha256:repository-after", pending_inbox_count: 0, accepted_event_count: 1 } });
@@ -162,7 +163,7 @@ describe("Vela Workbench Tranche 3", () => {
 
   it("starts with a local-only repository choice and runtime boundary", async () => {
     render(<App />);
-    expect(await screen.findByText("Start from sovereign source")).toBeVisible();
+    expect(await screen.findByText("Continue local scientific work")).toBeVisible();
     expect(screen.getByText("Private files, credentials, and evidence stay local.")).toBeVisible();
     expect(await screen.findByText("vela 0.977.2")).toBeVisible();
   });
@@ -175,7 +176,7 @@ describe("Vela Workbench Tranche 3", () => {
     expect(await screen.findByText("Vela Math")).toBeVisible();
     expect(screen.getByText("A bounded accepted result.")).toBeVisible();
     expect(screen.getByText("No reviewed Problem locator")).toBeVisible();
-    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(await screen.findByText("Open exact source elsewhere")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Terminal" }));
     expect(calls.launchRepository).toHaveBeenCalledWith(snapshot.path, "terminal");
@@ -185,7 +186,7 @@ describe("Vela Workbench Tranche 3", () => {
     const user = userEvent.setup(); render(<App />);
     const choices = await screen.findAllByRole("button", { name: "Choose repository" });
     await user.click(choices[choices.length - 1]);
-    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
     await user.click(screen.getByRole("button", { name: "Select tool" }));
     await user.click(await screen.findByRole("button", { name: "Review command" }));
     expect(await screen.findByText(/current local user privileges/)).toBeVisible();
@@ -219,11 +220,56 @@ describe("Vela Workbench Tranche 3", () => {
     expect(screen.getByLabelText("Exact selected evidence bytes")).toHaveValue("result\n");
   });
 
+  it("carries the selected Result type into the exact Submission preview", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Capture" }));
+    await user.click(screen.getByRole("button", { name: "Choose one file" }));
+    await user.click(screen.getByRole("tab", { name: "Submit" }));
+    expect(screen.getByLabelText("Result type").querySelectorAll("option")).toHaveLength(5);
+    expect(Array.from(screen.getByLabelText("Result type").querySelectorAll("option"), (option) => option.value)).toEqual([
+      "theoretical", "computational", "empirical", "negative", "contradiction",
+    ]);
+    await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
+    await user.type(screen.getByLabelText("Bounded result"), "A reusable theorem.");
+    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
+    await user.click(screen.getByRole("button", { name: "Review exact CLI operation" }));
+    await waitFor(() => expect(calls.previewSubmissionDraft).toHaveBeenCalledWith(
+      snapshot.path,
+      expect.objectContaining({
+        assertion: "A reusable theorem.",
+        claim_type: "theoretical",
+        artifacts: [expect.objectContaining({ path: "result.txt", sha256: "sha256:evidence" })],
+      }),
+    ));
+  });
+
+  it("clears the complete source-bound Result draft on repository refresh", async () => {
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    await user.click(screen.getByRole("tab", { name: "Submit" }));
+    await user.selectOptions(screen.getByLabelText("Result type"), "negative");
+    await user.type(screen.getByLabelText("Bounded result"), "No witness was found within the exact bound.");
+    await user.clear(screen.getByLabelText("Producer attribution"));
+    await user.type(screen.getByLabelText("Producer attribution"), "agent:other");
+    await user.type(screen.getByLabelText("Required caveat"), "The unbounded case remains open.");
+    await user.type(screen.getByLabelText("Required independent Check"), "Repeat the bounded search.");
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(calls.inspectRepository).toHaveBeenCalledWith(snapshot.path));
+    expect(screen.getByLabelText("Bounded result")).toHaveValue("");
+    expect(screen.getByLabelText("Result type")).toHaveValue("computational");
+    expect(screen.getByLabelText("Producer attribution")).toHaveValue("agent:researcher");
+    expect(screen.getByLabelText("Required caveat")).toHaveValue("");
+    expect(screen.getByLabelText("Required independent Check")).toHaveValue("");
+  });
+
   it("does not infer independence from actor identity and keeps task orientation explicit", async () => {
     const user = userEvent.setup(); render(<App />);
     const choices = await screen.findAllByRole("button", { name: "Choose repository" });
     await user.click(choices[choices.length - 1]);
-    await user.click(screen.getByRole("tab", { name: "Verify & Decide" }));
+    await user.click(screen.getByRole("tab", { name: "Check & Decide" }));
     expect(await screen.findByText("Inbox not read")).toBeVisible();
     expect(calls.refreshDecisionInbox).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Refresh exact roots" }));
@@ -236,7 +282,7 @@ describe("Vela Workbench Tranche 3", () => {
     const user = userEvent.setup(); render(<App />);
     const choices = await screen.findAllByRole("button", { name: "Choose repository" });
     await user.click(choices[choices.length - 1]);
-    await user.click(screen.getByRole("tab", { name: "Verify & Decide" }));
+    await user.click(screen.getByRole("tab", { name: "Check & Decide" }));
     await user.click(screen.getByRole("button", { name: "Refresh exact roots" }));
     await user.type(screen.getByLabelText("Bounded scientific reason"), "Evidence supports the bounded claim.");
     await user.click(screen.getByRole("button", { name: "Review exact attributed Decision" }));
@@ -253,7 +299,7 @@ describe("Vela Workbench Tranche 3", () => {
     const user = userEvent.setup(); render(<App />);
     const choices = await screen.findAllByRole("button", { name: "Choose repository" });
     await user.click(choices[choices.length - 1]);
-    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(await screen.findByText("OpenGauss handoff pilot")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Select OpenGauss" }));
     expect(await screen.findByText(/current local user privileges/)).toBeVisible();
@@ -273,7 +319,7 @@ describe("Vela Workbench Tranche 3", () => {
     await user.click(choices[choices.length - 1]);
     await user.click(screen.getByRole("tab", { name: "Capture" }));
     await user.click(screen.getByRole("button", { name: "Choose one file" }));
-    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
     await user.click(screen.getByRole("button", { name: "Select OpenGauss" }));
     await user.click(screen.getByRole("button", { name: "Open explicit Terminal handoff" }));
     await user.click(await screen.findByRole("checkbox", { name: /result.txt/ }));
@@ -315,7 +361,7 @@ describe("Vela Workbench Tranche 3", () => {
     const user = userEvent.setup(); render(<App />);
     const choices = await screen.findAllByRole("button", { name: "Choose repository" });
     await user.click(choices[choices.length - 1]);
-    await user.click(screen.getByRole("tab", { name: "Execute" }));
+    await user.click(screen.getByRole("tab", { name: "Work" }));
     await user.click(screen.getByRole("button", { name: "Select tool" }));
     await user.click(await screen.findByRole("button", { name: "Review command" }));
     await user.click(screen.getByRole("button", { name: "Start explicitly" }));

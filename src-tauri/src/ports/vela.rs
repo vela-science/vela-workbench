@@ -636,7 +636,7 @@ fn read_submission_artifact(
 }
 
 fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, PortError> {
-    bounded_text(&draft.assertion, "Claim assertion")?;
+    bounded_text(&draft.assertion, "Result assertion")?;
     if draft.conditions.len() > 32
         || draft.verification_requirements.len() > 32
         || draft.producer_check_run_ids.len() > 16
@@ -650,7 +650,7 @@ fn validate_draft(repository: &Path, draft: &SubmissionDraftDto) -> Result<u64, 
         draft.claim_type.as_str(),
         "computational" | "theoretical" | "empirical" | "negative" | "contradiction"
     ) {
-        return Err(PortError::InvalidInput("unsupported Claim type".into()));
+        return Err(PortError::InvalidInput("unsupported Result type".into()));
     }
     if !matches!(
         draft.replayability.as_str(),
