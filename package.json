@@ -10,6 +10,8 @@
     "test:watch": "vitest",
     "contracts": "cargo run --manifest-path src-tauri/Cargo.toml --locked --features contract-export --bin export-bindings",
     "check": "bun run contracts && cargo test --manifest-path src-tauri/Cargo.toml --locked && bun run test && bun run build",
+    "release:macos:check": "scripts/release-macos.sh --check",
+    "release:macos": "scripts/release-macos.sh",
     "preview": "vite preview",
     "tauri": "tauri"
   },
