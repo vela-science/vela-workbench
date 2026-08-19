@@ -7,9 +7,13 @@ mod preferences;
 pub fn run() {
     let state = commands::AppState::load().expect("load Vela Workbench preferences");
     tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
+            commands::review_problem_handoff,
+            commands::open_problem_handoff,
+            commands::review_problem_handoff_source,
             commands::select_repository,
             commands::inspect_repository,
             commands::select_vela_binary,

@@ -19,11 +19,12 @@ use crate::{
         LaunchResultDto, NativeExecPreviewDto, NativeExecProfileDto, NativeExecResultDto,
         NativeToolDto, OpenGaussGitIdentityDto, OpenGaussHandoffPreviewDto,
         OpenGaussHandoffReceiptDto, OpenGaussSelectedCheckDto, OpenGaussSelectedEvidenceDto,
-        PreferencesDto, RecoveryPreviewDto, RecoveryResultDto, RepositorySnapshotDto,
-        RuntimePolicyDto, SubmissionDraftDto, SubmissionImportPreviewDto, SubmissionPreviewDto,
-        SubmissionResultDto, VelaBinaryDto, VelaInspectionDto, VerificationDraftDto,
-        VerificationImportPreviewDto, VerificationMethodDto, VerificationPreviewDto,
-        VerificationResultDto, WorktreePreviewDto, WorktreeResultDto,
+        PreferencesDto, ProblemHandoffDto, ProblemHandoffSourceDto, RecoveryPreviewDto,
+        RecoveryResultDto, RepositorySnapshotDto, RuntimePolicyDto, SubmissionDraftDto,
+        SubmissionImportPreviewDto, SubmissionPreviewDto, SubmissionResultDto, VelaBinaryDto,
+        VelaInspectionDto, VerificationDraftDto, VerificationImportPreviewDto,
+        VerificationMethodDto, VerificationPreviewDto, VerificationResultDto, WorktreePreviewDto,
+        WorktreeResultDto,
     },
     ports::{self, PortError},
     preferences::PreferencesStore,
@@ -212,6 +213,89 @@ pub(crate) fn bootstrap(state: State<'_, AppState>) -> Result<BootstrapDto, Comm
     })
 }
 
+#[tauri::command]
+pub(crate) fn review_problem_handoff(url: String) -> Result<ProblemHandoffDto, CommandErrorDto> {
+    ports::problem_handoff::parse(&url).map_err(Into::into)
+}
+
+#[tauri::command]
+pub(crate) fn open_problem_handoff(
+    handoff: ProblemHandoffDto,
+) -> Result<LaunchResultDto, CommandErrorDto> {
+    let confirmed = ports::problem_handoff::parse(&handoff.handoff_url)?;
+    if confirmed != handoff {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Problem handoff fields changed after native review",
+        ));
+    }
+    let cwd = std::env::current_dir().map_err(|error| {
+        CommandErrorDto::new("internal", format!("resolve Workbench directory: {error}"))
+    })?;
+    ports::launch::launch_https(&cwd, &handoff.problem_url)?;
+    Ok(LaunchResultDto {
+        target: handoff.problem_url,
+        owner: "default HTTPS browser".into(),
+    })
+}
+
+#[tauri::command]
+pub(crate) fn review_problem_handoff_source(
+    path: String,
+    handoff: ProblemHandoffDto,
+    state: State<'_, AppState>,
+) -> Result<ProblemHandoffSourceDto, CommandErrorDto> {
+    let confirmed = ports::problem_handoff::parse(&handoff.handoff_url)?;
+    if confirmed != handoff {
+        return Err(CommandErrorDto::new(
+            "stale",
+            "Problem handoff fields changed after native review",
+        ));
+    }
+    let canonical = std::fs::canonicalize(&path).map_err(|error| {
+        CommandErrorDto::new("invalid_input", format!("resolve repository: {error}"))
+    })?;
+    if !state
+        .preferences
+        .lock()
+        .map_err(|_| state_error())?
+        .contains_repository(&canonical)
+    {
+        return Err(CommandErrorDto::new(
+            "not_selected",
+            "repository path is not an explicit user-selected recent",
+        ));
+    }
+    let git = ports::git::inspect(&canonical)?;
+    let (remote_matches, revision_matches) =
+        ports::problem_handoff::source_matches(&git.remotes, &git.head_commit, &handoff);
+    let ready = remote_matches && revision_matches;
+    let note = match (remote_matches, revision_matches) {
+        (true, true) => {
+            "The selected checkout matches the handoff source remote and exact revision."
+        }
+        (true, false) => {
+            "The source remote matches, but the selected checkout is at a different revision. Create a detached worktree at the requested ref before beginning work."
+        }
+        (false, true) => {
+            "The revision matches, but no selected fetch remote matches the handoff source repository."
+        }
+        (false, false) => {
+            "The selected checkout does not match the handoff source repository or revision."
+        }
+    };
+    Ok(ProblemHandoffSourceDto {
+        repository_path: git.root,
+        source_repository_url: handoff.source_repository_url,
+        source_revision: handoff.source_revision,
+        selected_head: git.head_commit,
+        remote_matches,
+        revision_matches,
+        ready,
+        note: note.into(),
+    })
+}
+
 fn inspect_path(
     path: &Path,
     vela_binary_path: Option<&Path>,
@@ -249,7 +333,6 @@ fn inspect_path(
         git,
         vela,
         entire,
-        reviewed_problem_url: None,
     })
 }
 

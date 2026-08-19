@@ -4,5 +4,5 @@
   "description": "Local renderer access to explicitly enumerated Vela Workbench commands.",
   "windows": ["main"],
   "local": true,
-  "permissions": ["workbench-tranche-three"]
+  "permissions": ["workbench-product", "core:event:default", "deep-link:default"]
 }

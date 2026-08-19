@@ -34,6 +34,31 @@ pub struct BootstrapDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct ProblemHandoffDto {
+    pub schema: String,
+    pub handoff_url: String,
+    pub problem_url: String,
+    pub source_repository_url: String,
+    pub source_revision: String,
+    pub authority_repository_url: String,
+    pub artifact_paths: Vec<String>,
+    pub authority_effect: String,
+    pub boundary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+pub struct ProblemHandoffSourceDto {
+    pub repository_path: String,
+    pub source_repository_url: String,
+    pub source_revision: String,
+    pub selected_head: String,
+    pub remote_matches: bool,
+    pub revision_matches: bool,
+    pub ready: bool,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RepositoryClassificationDto {
     VelaRepository,
@@ -204,7 +229,6 @@ pub struct RepositorySnapshotDto {
     pub git: GitSnapshotDto,
     pub vela: VelaInspectionDto,
     pub entire: EntireAvailabilityDto,
-    pub reviewed_problem_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
@@ -886,6 +910,8 @@ pub fn typescript_bindings() -> String {
         PreferencesDto::decl(&config),
         RuntimePolicyDto::decl(&config),
         BootstrapDto::decl(&config),
+        ProblemHandoffDto::decl(&config),
+        ProblemHandoffSourceDto::decl(&config),
         RepositoryClassificationDto::decl(&config),
         VelaBinaryStateDto::decl(&config),
         VelaBinaryDto::decl(&config),
@@ -972,7 +998,7 @@ mod tests {
     }
 
     #[test]
-    fn tranche_three_capability_is_closed_and_contains_only_reviewed_authority_paths() {
+    fn product_capability_is_closed_and_contains_only_reviewed_authority_paths() {
         let permission = include_str!("../../permissions/workbench.toml");
         for forbidden in ["shell", "http", "upload", "provider", "generic", "session"] {
             assert!(
@@ -986,6 +1012,9 @@ mod tests {
         assert!(permission.contains("preview_submission_draft"));
         assert!(permission.contains("import_submission"));
         for required in [
+            "review_problem_handoff",
+            "review_problem_handoff_source",
+            "open_problem_handoff",
             "refresh_decision_inbox",
             "preview_verification_record",
             "record_verification",
@@ -1004,7 +1033,7 @@ mod tests {
                 .lines()
                 .filter(|line| line.trim_start().starts_with('"'))
                 .count(),
-            32
+            35
         );
     }
 }

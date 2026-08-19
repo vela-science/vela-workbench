@@ -6,6 +6,10 @@ export type RuntimePolicyDto = { interface_commit: string, interface_tree: strin
 
 export type BootstrapDto = { preferences: PreferencesDto, runtime: RuntimePolicyDto, };
 
+export type ProblemHandoffDto = { schema: string, handoff_url: string, problem_url: string, source_repository_url: string, source_revision: string, authority_repository_url: string, artifact_paths: Array<string>, authority_effect: string, boundary: string, };
+
+export type ProblemHandoffSourceDto = { repository_path: string, source_repository_url: string, source_revision: string, selected_head: string, remote_matches: boolean, revision_matches: boolean, ready: boolean, note: string, };
+
 export type RepositoryClassificationDto = "vela_repository" | "native_integration" | "git_only";
 
 export type VelaBinaryStateDto = "signed_runtime_baseline" | "unsupported";
@@ -36,7 +40,7 @@ export type VelaInspectionDto = { binary: VelaBinaryDto | null, status: VelaStat
 
 export type EntireAvailabilityDto = { cli_available: boolean, checkpoint_reference_count: number, note: string, };
 
-export type RepositorySnapshotDto = { path: string, name: string, observed_at_unix_ms: number, classification: RepositoryClassificationDto, classification_basis: string, git: GitSnapshotDto, vela: VelaInspectionDto, entire: EntireAvailabilityDto, reviewed_problem_url: string | null, };
+export type RepositorySnapshotDto = { path: string, name: string, observed_at_unix_ms: number, classification: RepositoryClassificationDto, classification_basis: string, git: GitSnapshotDto, vela: VelaInspectionDto, entire: EntireAvailabilityDto, };
 
 export type LaunchKindDto = "terminal" | "cursor" | "visual_studio_code" | "forge";
 
