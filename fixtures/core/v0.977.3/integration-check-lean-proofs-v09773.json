@@ -8,7 +8,7 @@
     "a Vela Decision or Event",
     "Standing"
   ],
-  "manifest_root": "sha256:b56bc2cd1107c0e85f414a8c15d4a1dd561c36b61e6d5dad98ff6c274281a434",
+  "manifest_root": "sha256:6768749539afa5d01588a75d7275d5e9d32114a0f4c3e1a1dc48128ec80e4088",
   "ok": true,
   "schema": "vela.cli.integration-check.v1"
 }

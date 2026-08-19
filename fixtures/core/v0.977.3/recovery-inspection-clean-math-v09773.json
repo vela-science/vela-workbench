@@ -1,0 +1,9 @@
+{
+  "schema": "vela.recovery-inspection.v1",
+  "ok": true,
+  "command": "recover.inspect",
+  "repository_path": "/Users/williamblair/personal/math",
+  "repository_id": "3d012325-3768-4b95-a385-c94e9f2a57a6",
+  "recovery_required": false,
+  "authority_effect": "none"
+}

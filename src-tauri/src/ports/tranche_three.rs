@@ -52,7 +52,7 @@ fn exact_binary(binary: &Path) -> Result<crate::contracts::VelaBinaryDto, PortEr
     let identity = super::vela::inspect_binary(binary)?;
     if identity.state != crate::contracts::VelaBinaryStateDto::SignedRuntimeBaseline {
         return Err(PortError::Unsupported(
-            "Vela Repository actions require the exact signed Vela v0.977.2 runtime".into(),
+            "Vela Repository actions require the exact signed Vela v0.977.3 runtime".into(),
         ));
     }
     Ok(identity)
@@ -171,6 +171,15 @@ fn bounded_token(value: &str, label: &str) -> Result<(), PortError> {
         return Err(PortError::InvalidInput(format!(
             "{label} is not bounded text"
         )));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_operation_id(value: &str) -> Result<(), PortError> {
+    if !super::valid_recovery_operation_id(value) {
+        return Err(PortError::InvalidInput(
+            "recovery operation id must use vop_ with one lowercase 64-character digest".into(),
+        ));
     }
     Ok(())
 }
@@ -991,7 +1000,7 @@ pub(crate) fn preview_decision(
         DecisionActionDto::Reject => current.standing_delta.if_reject.clone(),
     };
     Ok(DecisionPreviewDto { request, repository_path: repository.display().to_string(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, entry: current, performer_kind,
-        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.2 exposes the actual principal only in the Decision result/readback.".into(),
+        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.3 exposes the actual principal only in the Decision result/readback.".into(),
         authentication: "local_os_session".into(), transaction_signer: "repository_authority".into(), ssh_agent_forwarded: std::env::var_os("SSH_AUTH_SOCK").is_some(), argv, expected_successor,
         warning: "This is the only authority-changing step. Verification outcome remains separate. Vela authenticates the Repository principal, evaluates policy, signs the transaction, and rejects any stale entry root.".into() })
 }
@@ -1173,12 +1182,7 @@ pub(crate) fn preview_recovery(
     git: &GitSnapshotDto,
     operation_id: &str,
 ) -> Result<RecoveryPreviewDto, PortError> {
-    bounded_token(operation_id, "recovery operation id")?;
-    if !operation_id.starts_with("vop_") {
-        return Err(PortError::InvalidInput(
-            "Recovery requires the exact vop_ operation id".into(),
-        ));
-    }
+    validate_operation_id(operation_id)?;
     Ok(RecoveryPreviewDto { repository_path: repository.display().to_string(), operation_id: operation_id.into(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, argv: vec!["recover".into(), "--repo".into(), repository.display().to_string(), operation_id.into(), "--json".into()], warning: "Recovery applies only the signed Vela transaction journal for this exact operation. It never retries or chooses a Decision.".into() })
 }
 
@@ -1227,6 +1231,22 @@ pub(crate) fn recover_transaction(
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn recovery_operation_id_is_one_exact_lowercase_digest() {
+        assert!(validate_operation_id(&format!("vop_{}", "a".repeat(64))).is_ok());
+        for invalid in [
+            "vop_short".to_string(),
+            format!("vop_{}", "A".repeat(64)),
+            format!("op_{}", "a".repeat(64)),
+            format!("vop_{}", "g".repeat(64)),
+        ] {
+            assert!(
+                validate_operation_id(&invalid).is_err(),
+                "accepted {invalid}"
+            );
+        }
+    }
 
     fn git(root: &Path, args: &[&str]) {
         let status = Command::new("/usr/bin/git")
@@ -1297,7 +1317,7 @@ mod tests {
     #[test]
     fn verification_import_subject_must_match_current_inbox_roots() {
         let value: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/core/v0.977.2/decision-inbox-v3.json"
+            "../../../fixtures/core/v0.977.3/decision-inbox-v3.json"
         ))
         .expect("frozen Inbox JSON");
         let inbox = parse_decision_inbox_value(&value).expect("parse frozen Inbox");
@@ -1366,7 +1386,7 @@ mod tests {
     #[test]
     fn frozen_decision_inbox_preserves_dependency_disclosure_without_inference() {
         let value: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/core/v0.977.2/decision-inbox-v3.json"
+            "../../../fixtures/core/v0.977.3/decision-inbox-v3.json"
         ))
         .expect("frozen Inbox JSON");
         let parsed = parse_decision_inbox_value(&value).expect("parse frozen Inbox");

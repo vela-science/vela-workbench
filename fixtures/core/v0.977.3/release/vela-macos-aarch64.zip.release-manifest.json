@@ -1,16 +1,16 @@
 {
   "assets": [
     {
-      "bytes": 2690158,
+      "bytes": 2690939,
       "kind": "archive",
       "name": "vela-macos-aarch64.zip",
-      "sha256": "sha256:dab66bd3bed975bcf253bf74947803cbfd966a373ebb291307b4b1836fc7124e"
+      "sha256": "sha256:f1299f217985c1eecdfb20ef8750014bbf7b2fc6d3cc31ca33bdd433e2be8991"
     },
     {
       "bytes": 194324,
       "kind": "sbom",
       "name": "vela-macos-aarch64.zip.spdx.json",
-      "sha256": "sha256:2e8e1df7a000a97f337e311dc76b1de4a01d7d7a977de405cf7c80fc61eb8f16"
+      "sha256": "sha256:d75e21fde4475e0b8f26deb348fa3609af410cfbe2e1da5dec8c564be5b80e9d"
     }
   ],
   "attestation": {
@@ -20,7 +20,7 @@
   },
   "binary": {
     "name": "vela",
-    "sha256": "sha256:286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2"
+    "sha256": "sha256:3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad"
   },
   "build": {
     "cargo_auditable_version": "0.7.5",
@@ -31,7 +31,7 @@
       "archive_builds_compared": 2,
       "binary_builds_compared": 2,
       "build_path": "/src/vela",
-      "source_date_epoch": 1787080966
+      "source_date_epoch": 1787125330
     },
     "sbom": {
       "format": "spdx-json",
@@ -39,10 +39,10 @@
       "tool_version": "1.50.0"
     }
   },
-  "generated_at": "2026-08-18T19:22:46Z",
+  "generated_at": "2026-08-19T07:42:10Z",
   "release": {
-    "tag": "v0.977.2",
-    "version": "0.977.2"
+    "tag": "v0.977.3",
+    "version": "0.977.3"
   },
   "schema": "vela.release-bundle-manifest.v1",
   "signature": {
@@ -52,10 +52,10 @@
   },
   "source": {
     "available": true,
-    "commit": "c1a34373c2cdd937ed34fd128174a66fa12be71a",
+    "commit": "1c1abe8f365f16803fea889bf9280877992a6d02",
     "dirty": false,
     "remote": "https://github.com/vela-science/vela",
-    "tree": "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55"
+    "tree": "66bb4cb5173ff50beeef45c03fa11060e1e9e377"
   },
   "target": {
     "architecture": "aarch64",

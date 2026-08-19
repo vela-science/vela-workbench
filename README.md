@@ -14,12 +14,12 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 - Tauri CLI `2.11.4`, Tauri API `2.11.1`
 - Rust `1.97.1`, edition 2024
 - Bun lockfile with React `19.2.8`, TypeScript `5.8.3`, Vite `7.3.6`, Tailwind `4.3.3`, Base UI `1.7.0`
-- Signed Core release `v0.977.2`, commit `c1a34373c2cdd937ed34fd128174a66fa12be71a`, tree `b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55`, Protocol 1 manifest root `sha256:631f11584930c74e9fa2e868bec7015c70c7fa6cfe20e28112b5e4c4501e1d4c`
-- macOS arm64 runtime SHA-256 `286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2`; release manifest SHA-256 `afaf60b88eb5eeafeefda9b1edd4080f137eb86ad64964f1d70cdf3762c3183a`
-- Linux x86_64 runtime SHA-256 `3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd`; release manifest SHA-256 `7d3af1bf4ae81bcbf8cee190e34d53c0fa0af2e6ce3c1d785a36fc10169cf603`
+- Signed Core release `v0.977.3`, commit `1c1abe8f365f16803fea889bf9280877992a6d02`, tree `66bb4cb5173ff50beeef45c03fa11060e1e9e377`, Protocol 1 manifest root `sha256:534120b2dfcfb8357d7f20be3e3a0e0dfbe21d0cd51082edb5dea686ca82ec85`
+- macOS arm64 runtime SHA-256 `3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad`; release manifest SHA-256 `b0da2d3e9a5d896fdfad96fe096c9caee5c66e54ed713bd0a0c408e14a1b65a0`
+- Linux x86_64 runtime SHA-256 `89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0`; release manifest SHA-256 `3308d8867575f3703070b93f9a664a2e35f98bc1aac5a060efa4d3a5d1ae9b72`
 - WB-OPENGAUSS-01 observed against `math-inc/OpenGauss` version `0.2.2`, commit `f87633900ae185b8037bf451a914fe7eeae1eb08`, tree `aa3768f7cf5dd06d01a972bc8ed789f7b43246fb`; OpenGauss is never bundled
 
-The interface fixtures and executable gating name the same immutable signed v0.977.2 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate paths.
+The interface fixtures and executable gating name the same immutable signed v0.977.3 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate paths.
 
 ## Continue a Problem locally
 

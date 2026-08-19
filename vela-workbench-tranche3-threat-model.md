@@ -1,7 +1,7 @@
 # Vela Workbench Tranche 3 threat and capability contract
 
 Status: frozen before privileged implementation
-Runtime: signed Vela `v0.977.2` only
+Runtime: signed Vela `v0.977.3` only
 Base: `1d5e8e29b1429b273461dd56d9347dc630c1536c`
 
 ## Scope
@@ -39,7 +39,7 @@ canonicalization, validation, confirmations, and renderer DTO generation.
 
 ## CLI contracts
 
-Only the selected, hash-pinned `v0.977.2` binary may run:
+Only the selected, hash-pinned `v0.977.3` binary may run:
 
 - `vela review inbox --repo <root> --json`
 - `vela review show --repo <root> <proposal> --json`
@@ -102,7 +102,7 @@ objections, scope, dependencies, counterevidence, or degraded reads.
 ## Structured failures
 
 Rust requires `vela.error.v1` and branches only on exact `error.kind` and
-`error.code`. Stable v0.977.2 codes handled explicitly include:
+`error.code`. Stable v0.977.3 codes handled explicitly include:
 
 - `missing_independent_verification`
 - `decision_entry_stale`

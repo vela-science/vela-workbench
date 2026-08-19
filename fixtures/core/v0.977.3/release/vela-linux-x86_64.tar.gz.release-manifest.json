@@ -1,16 +1,16 @@
 {
   "assets": [
     {
-      "bytes": 3086294,
+      "bytes": 3087978,
       "kind": "archive",
       "name": "vela-linux-x86_64.tar.gz",
-      "sha256": "sha256:23f03735f97820cbf56e5f2cc0c9d56b5657d7113dcbd0b738aafb1e241498b3"
+      "sha256": "sha256:072af0182152ac4b4a8f04cec7e37f1dc3b5b7a42f49ef4066cce559e26835b3"
     },
     {
       "bytes": 204553,
       "kind": "sbom",
       "name": "vela-linux-x86_64.tar.gz.spdx.json",
-      "sha256": "sha256:8511426b13859147ebcf0fdd9bc0f32d77d3542f1b5effbe69df196faf61c3b9"
+      "sha256": "sha256:076b34413c91e11e065f23a0574ac34389a31aabd3840d735b6bf218516a00dd"
     }
   ],
   "attestation": {
@@ -20,7 +20,7 @@
   },
   "binary": {
     "name": "vela",
-    "sha256": "sha256:3e2e12ac3410aa4a62013d3d7e2ceb828504c7beaff09cf1d126bc2d7ba077cd"
+    "sha256": "sha256:89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0"
   },
   "build": {
     "cargo_auditable_version": "0.7.5",
@@ -31,7 +31,7 @@
       "archive_builds_compared": 2,
       "binary_builds_compared": 2,
       "build_path": "/src/vela",
-      "source_date_epoch": 1787080966
+      "source_date_epoch": 1787125330
     },
     "sbom": {
       "format": "spdx-json",
@@ -39,10 +39,10 @@
       "tool_version": "1.50.0"
     }
   },
-  "generated_at": "2026-08-18T19:22:46Z",
+  "generated_at": "2026-08-19T07:42:10Z",
   "release": {
-    "tag": "v0.977.2",
-    "version": "0.977.2"
+    "tag": "v0.977.3",
+    "version": "0.977.3"
   },
   "schema": "vela.release-bundle-manifest.v1",
   "signature": {
@@ -52,10 +52,10 @@
   },
   "source": {
     "available": true,
-    "commit": "c1a34373c2cdd937ed34fd128174a66fa12be71a",
+    "commit": "1c1abe8f365f16803fea889bf9280877992a6d02",
     "dirty": false,
     "remote": "https://github.com/vela-science/vela",
-    "tree": "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55"
+    "tree": "66bb4cb5173ff50beeef45c03fa11060e1e9e377"
   },
   "target": {
     "architecture": "x86_64",

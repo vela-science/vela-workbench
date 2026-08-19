@@ -6,11 +6,11 @@ import type { BootstrapDto, ProblemHandoffDto, RepositorySnapshotDto } from "./c
 const bootstrap: BootstrapDto = {
   preferences: { recent_repositories: [], vela_binary_path: "/usr/local/bin/vela" },
   runtime: {
-    interface_commit: "c1a34373c2cdd937ed34fd128174a66fa12be71a",
-    interface_tree: "b9188626039cfc1a4d7d4098d1b7fc6a4a92ad55",
-    runtime_version: "vela 0.977.2",
-    runtime_commit: "c1a34373c2cdd937ed34fd128174a66fa12be71a",
-    runtime_sha256: "286ed839ea81b7ed283e04ea1823c1515ad242dcee02b424787b8daa667625e2",
+    interface_commit: "1c1abe8f365f16803fea889bf9280877992a6d02",
+    interface_tree: "66bb4cb5173ff50beeef45c03fa11060e1e9e377",
+    runtime_version: "vela 0.977.3",
+    runtime_commit: "1c1abe8f365f16803fea889bf9280877992a6d02",
+    runtime_sha256: "3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad",
     read_only: false,
     tranche: "3",
     mutation_scope: "explicit_verification_and_attributed_repository_decision",
@@ -35,7 +35,7 @@ const snapshot: RepositorySnapshotDto = {
     entire_checkpoints: [],
   },
   vela: {
-    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.2", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
+    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.3", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
     status: {
       repository_id: "vela-math", repository_name: "Vela Math", repository_profile_root: "profile-root",
       repository_root: "repository-root", origin_root: "origin-root", authority_keyset_root: "keys-root",
@@ -45,7 +45,7 @@ const snapshot: RepositorySnapshotDto = {
       inbox_pending: 0, inbox_projection_root: null, work_mode: "orient", work_command: "vela status --repo . --json", work_note: "Inspect exact current state.",
     },
     claims: [{ claim_id: "claim-1", claim_root: "claim-root", standing: "accepted", origin_era: "current", readable: true, assertion_kind: "statement", assertion: "A bounded accepted result.", unreadable_reason: null, created_at: null, revision: 1 }],
-    integration: null, refusal: null,
+    integration: null, refusal: null, recovery_operation_id: null,
   },
   entire: { cli_available: false, checkpoint_reference_count: 0, note: "No substitute store." },
 };
@@ -71,6 +71,7 @@ const deepLinks = vi.hoisted(() => ({ observe: vi.fn() }));
 vi.mock("./lib/workbench", () => ({ workbench: calls }));
 vi.mock("./lib/problem-handoff", () => ({ observeProblemHandoffUrls: deepLinks.observe }));
 import App from "./App";
+import { TrancheThree } from "./TrancheThree";
 
 const problemHandoff: ProblemHandoffDto = {
   schema: "vela.workbench.problem-handoff.v1",
@@ -188,6 +189,15 @@ describe("Vela Workbench product loop", () => {
       ready: true,
       note: "The selected checkout matches the handoff source remote and exact revision.",
     });
+    calls.previewRecovery.mockResolvedValue({
+      repository_path: snapshot.path,
+      operation_id: `vop_${"a".repeat(64)}`,
+      source_commit: snapshot.git.head_commit,
+      source_tree: snapshot.git.head_tree,
+      vela_binary_sha256: bootstrap.runtime.runtime_sha256,
+      argv: ["recover", "--repo", snapshot.path, `vop_${"a".repeat(64)}`, "--json"],
+      warning: "Recovery applies only the signed Vela transaction journal for this exact operation. It never retries or chooses a Decision.",
+    });
     calls.previewSubmissionDraft.mockResolvedValue(null);
     calls.refreshDecisionInbox.mockResolvedValue({ repository_id: "vela-math", repository_root: entry.repository_root, projection_root: "sha256:projection", entries: [entry], observed_at_unix_ms: 1_787_000_000_000, task: "Review exact pending Proposals", included_records: ["Proposal", "Submission", "Verification", "Standing"], omissions: ["No hidden session or provider state is included."], stale: false, refusal: null });
     calls.previewDecision.mockResolvedValue({ request: { proposal_id: entry.proposal_id, entry_root: entry.entry_root, action: "accept", reason: "Evidence supports the bounded claim.", performer: "agent:reviewer", session_ref: null }, repository_path: snapshot.path, source_commit: snapshot.git.head_commit, source_tree: snapshot.git.head_tree, vela_binary_sha256: bootstrap.runtime.runtime_sha256, entry, performer_kind: "agent", repository_authority_principal: "Resolved by signed Vela during execution; performer does not grant authority.", authentication: "Local OS and repository policy", transaction_signer: "Repository authority signer selected by signed Vela", ssh_agent_forwarded: true, argv: ["review", "accept", "--if-entry-root", entry.entry_root], expected_successor: entry.standing_delta.accept, warning: "Authority changes only after native confirmation." });
@@ -201,7 +211,7 @@ describe("Vela Workbench product loop", () => {
     render(<App />);
     expect(await screen.findByText("Continue local scientific work")).toBeVisible();
     expect(screen.getByText("Private files, credentials, and evidence stay local.")).toBeVisible();
-    expect(await screen.findByText("vela 0.977.2")).toBeVisible();
+    expect(await screen.findByText("vela 0.977.3")).toBeVisible();
   });
 
   it("reviews a browser handoff before binding the exact local source", async () => {
@@ -253,6 +263,63 @@ describe("Vela Workbench product loop", () => {
     expect(await screen.findByText("Open exact source elsewhere")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Terminal" }));
     expect(calls.launchRepository).toHaveBeenCalledWith(snapshot.path, "terminal");
+  });
+
+  it("surfaces exact restart recovery from fresh signed repository inspection", async () => {
+    const operationId = `vop_${"a".repeat(64)}`;
+    const incomplete: RepositorySnapshotDto = {
+      ...snapshot,
+      classification_basis: "Signed Vela found one exact interrupted Repository operation; explicit recovery is required before other authority work.",
+      vela: {
+        ...snapshot.vela,
+        status: null,
+        claims: [],
+        recovery_operation_id: operationId,
+        refusal: null,
+      },
+    };
+    calls.selectRepository.mockResolvedValue(incomplete);
+    const user = userEvent.setup(); render(<App />);
+    const choices = await screen.findAllByRole("button", { name: "Choose repository" });
+    await user.click(choices[choices.length - 1]);
+    expect(await screen.findByText("Vela repository")).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Check & Decide" }));
+    expect(await screen.findByText(operationId)).toBeVisible();
+    expect(screen.getByText(/fresh signed Vela recovery inspection found this unfinished Repository transaction/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review recovery" }));
+    expect(calls.previewRecovery).toHaveBeenCalledWith(snapshot.path, operationId);
+    expect(await screen.findByText(/Recovery applies only the signed Vela transaction journal/)).toBeVisible();
+  });
+
+  it("clears a recovery preview when fresh inspection replaces the operation", async () => {
+    const user = userEvent.setup();
+    const operationA = `vop_${"a".repeat(64)}`;
+    const operationB = `vop_${"b".repeat(64)}`;
+    const withOperation = (operationId: string | null): RepositorySnapshotDto => ({
+      ...snapshot,
+      vela: {
+        ...snapshot.vela,
+        status: operationId ? null : snapshot.vela.status,
+        claims: operationId ? [] : snapshot.vela.claims,
+        recovery_operation_id: operationId,
+      },
+    });
+    const onRepositoryChanged = vi.fn(async () => {});
+    const rendered = render(
+      <TrancheThree snapshot={withOperation(operationA)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Review recovery" }));
+    expect(await screen.findByText(/Recovery applies only the signed Vela transaction journal/)).toBeVisible();
+    rendered.rerender(
+      <TrancheThree snapshot={withOperation(operationB)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    expect(await screen.findByText(operationB)).toBeVisible();
+    await waitFor(() => expect(screen.queryByText(/Recovery applies only the signed Vela transaction journal/)).not.toBeInTheDocument());
+    expect(screen.getByText("Exact transaction recovery")).toBeVisible();
+    rendered.rerender(
+      <TrancheThree snapshot={withOperation(null)} evidence={[]} onRepositoryChanged={onRepositoryChanged} />,
+    );
+    await waitFor(() => expect(screen.queryByText("Exact transaction recovery")).not.toBeInTheDocument());
   });
 
   it("requires explicit native execution review and says the controls are not a sandbox", async () => {
