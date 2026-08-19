@@ -6,6 +6,7 @@ commands.allow = [
   "review_problem_handoff",
   "open_problem_handoff",
   "review_problem_handoff_source",
+  "review_problem_handoff_authority",
   "select_repository",
   "inspect_repository",
   "select_vela_binary",

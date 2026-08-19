@@ -14,6 +14,7 @@ pub fn run() {
             commands::review_problem_handoff,
             commands::open_problem_handoff,
             commands::review_problem_handoff_source,
+            commands::review_problem_handoff_authority,
             commands::select_repository,
             commands::inspect_repository,
             commands::select_vela_binary,

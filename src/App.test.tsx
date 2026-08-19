@@ -50,9 +50,24 @@ const snapshot: RepositorySnapshotDto = {
   entire: { cli_available: false, checkpoint_reference_count: 0, note: "No substitute store." },
 };
 
+const sourceSnapshot: RepositorySnapshotDto = {
+  ...snapshot,
+  path: "/private/research/lean-proofs",
+  name: "lean-proofs",
+  classification: "git_only",
+  classification_basis: "No supported Vela state or native integration was found.",
+  git: {
+    ...snapshot.git,
+    root: "/private/research/lean-proofs",
+    worktrees: [{ ...snapshot.git.worktrees[0], path: "/private/research/lean-proofs" }],
+    remotes: [{ name: "origin", url: "git@github.com:vela-science/lean-proofs.git", operation: "fetch" }],
+  },
+  vela: { ...snapshot.vela, status: null, claims: [], binary: snapshot.vela.binary },
+};
+
 const calls = vi.hoisted(() => ({
   bootstrap: vi.fn(), selectRepository: vi.fn(), inspectRepository: vi.fn(),
-  reviewProblemHandoff: vi.fn(), openProblemHandoff: vi.fn(), reviewProblemHandoffSource: vi.fn(),
+  reviewProblemHandoff: vi.fn(), openProblemHandoff: vi.fn(), reviewProblemHandoffSource: vi.fn(), reviewProblemHandoffAuthority: vi.fn(),
   selectVelaBinary: vi.fn(), clearRecents: vi.fn(), launchRepository: vi.fn(),
   previewWorktree: vi.fn(), createWorktree: vi.fn(), selectNativeTool: vi.fn(),
   previewNativeExec: vi.fn(), runNativeExec: vi.fn(), cancelNativeExec: vi.fn(),
@@ -75,9 +90,9 @@ import { TrancheThree } from "./TrancheThree";
 
 const problemHandoff: ProblemHandoffDto = {
   schema: "vela.workbench.problem-handoff.v1",
-  handoff_url: `vela-workbench://continue?v=1&problem=https%3A%2F%2Fproblems.science%2Fproblems%2Ferdos-problems%2F94&source=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath.git&ref=${snapshot.git.head_commit}&repository=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath.git&artifact=result.txt`,
+  handoff_url: `vela-workbench://continue?v=1&problem=https%3A%2F%2Fproblems.science%2Fproblems%2Ferdos-problems%2F94&source=https%3A%2F%2Fgithub.com%2Fvela-science%2Flean-proofs.git&ref=${snapshot.git.head_commit}&repository=https%3A%2F%2Fgithub.com%2Fvela-science%2Fmath.git&artifact=result.txt`,
   problem_url: "https://problems.science/problems/erdos-problems/94",
-  source_repository_url: "https://github.com/vela-science/math",
+  source_repository_url: "https://github.com/vela-science/lean-proofs",
   source_revision: snapshot.git.head_commit,
   authority_repository_url: "https://github.com/vela-science/math",
   artifact_paths: ["result.txt"],
@@ -180,7 +195,7 @@ describe("Vela Workbench product loop", () => {
     calls.reviewProblemHandoff.mockResolvedValue(problemHandoff);
     calls.openProblemHandoff.mockResolvedValue({ target: problemHandoff.problem_url, owner: "default HTTPS browser" });
     calls.reviewProblemHandoffSource.mockResolvedValue({
-      repository_path: snapshot.path,
+      repository_path: sourceSnapshot.path,
       source_repository_url: problemHandoff.source_repository_url,
       source_revision: problemHandoff.source_revision,
       selected_head: snapshot.git.head_commit,
@@ -188,6 +203,15 @@ describe("Vela Workbench product loop", () => {
       revision_matches: true,
       ready: true,
       note: "The selected checkout matches the handoff source remote and exact revision.",
+    });
+    calls.reviewProblemHandoffAuthority.mockResolvedValue({
+      repository_path: snapshot.path,
+      authority_repository_url: problemHandoff.authority_repository_url,
+      repository_id: "vela-math",
+      remote_matches: true,
+      vela_repository: true,
+      ready: true,
+      note: "The selected checkout matches the authority Repository locator and contains current Vela Repository state. Vela still authenticates and authorizes every Decision separately.",
     });
     calls.previewRecovery.mockResolvedValue({
       repository_path: snapshot.path,
@@ -215,6 +239,7 @@ describe("Vela Workbench product loop", () => {
   });
 
   it("reviews a browser handoff before binding the exact local source", async () => {
+    calls.selectRepository.mockResolvedValueOnce(sourceSnapshot);
     const user = userEvent.setup(); render(<App />);
     await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
     const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
@@ -222,15 +247,47 @@ describe("Vela Workbench product loop", () => {
     expect(await screen.findByText("Continue this Problem locally")).toBeVisible();
     expect(calls.reviewProblemHandoff).toHaveBeenCalledWith(problemHandoff.handoff_url);
     expect(screen.getByText(problemHandoff.problem_url)).toBeVisible();
-    expect(screen.getAllByText(problemHandoff.authority_repository_url)).toHaveLength(2);
+    expect(screen.getByText(problemHandoff.authority_repository_url)).toBeVisible();
     expect(screen.getByText("result.txt")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Choose local source" }));
-    expect(await screen.findByText("exact source selected")).toBeVisible();
-    expect(calls.reviewProblemHandoffSource).toHaveBeenCalledWith(snapshot.path, problemHandoff);
+    expect(await screen.findByText(/exact source selected/)).toBeVisible();
+    expect(calls.reviewProblemHandoffSource).toHaveBeenCalledWith(sourceSnapshot.path, problemHandoff);
     await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(screen.getByLabelText("Exact target ref")).toHaveValue(problemHandoff.source_revision);
     await user.click(screen.getByRole("button", { name: "Open exact Problem" }));
     expect(calls.openProblemHandoff).toHaveBeenCalledWith(problemHandoff);
+  });
+
+  it("keeps the Result draft while explicitly continuing from source to the separate Repository", async () => {
+    calls.selectRepository
+      .mockResolvedValueOnce(sourceSnapshot)
+      .mockResolvedValueOnce(snapshot);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    expect(await screen.findByText(/exact source selected/)).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Submit" }));
+    await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
+    await user.type(screen.getByLabelText("Bounded result"), "The exact source proves one bounded identity.");
+    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
+    await user.type(screen.getByLabelText("Required independent Check"), "Replay the exact proof source.");
+    await user.click(screen.getByRole("button", { name: "Choose local Repository" }));
+    await waitFor(() => expect(calls.reviewProblemHandoffAuthority).toHaveBeenCalledWith(snapshot.path, problemHandoff));
+    expect(await screen.findByRole("button", { name: "Continue to Repository" })).toBeVisible();
+    expect(screen.getByText("Selected authority Repository")).toBeVisible();
+    expect(screen.getByLabelText("Bounded result")).toHaveValue("The exact source proves one bounded identity.");
+    expect(screen.getByLabelText("Result type")).toHaveValue("theoretical");
+    expect(screen.getByLabelText("Required caveat")).toHaveValue("This does not establish Repository acceptance.");
+    expect(screen.getByLabelText("Required independent Check")).toHaveValue("Replay the exact proof source.");
+    expect(screen.getByText(/Source bytes never move automatically/)).toBeVisible();
+    expect(screen.getByText(/Export each exact selected Artifact into the authority Repository/)).toBeVisible();
+    calls.inspectRepository.mockResolvedValueOnce(sourceSnapshot);
+    await user.click(screen.getByRole("button", { name: "Return to source" }));
+    expect(await screen.findByText("Selected Problem source")).toBeVisible();
+    expect(screen.getByLabelText("Bounded result")).toHaveValue("The exact source proves one bounded identity.");
   });
 
   it("keeps the newest Problem ref when an older repository picker finishes", async () => {
@@ -246,10 +303,169 @@ describe("Vela Workbench product loop", () => {
     await waitFor(() => expect(calls.selectRepository).toHaveBeenCalledTimes(1));
     accept(nextProblemHandoff.handoff_url);
     await screen.findByText(nextProblemHandoff.problem_url);
-    finishPicker(snapshot);
-    await screen.findByText("Vela Math");
+    finishPicker(sourceSnapshot);
+    await screen.findByRole("heading", { name: "lean-proofs" });
     await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(screen.getByLabelText("Exact target ref")).toHaveValue(nextProblemHandoff.source_revision);
+  });
+
+  it("does not bind a delayed source review to a newer Problem", async () => {
+    let finishReview!: (value: Awaited<ReturnType<typeof calls.reviewProblemHandoffSource>>) => void;
+    calls.selectRepository.mockResolvedValueOnce(sourceSnapshot);
+    calls.reviewProblemHandoff.mockImplementation(async (url: string) => url === nextProblemHandoff.handoff_url ? nextProblemHandoff : problemHandoff);
+    calls.reviewProblemHandoffSource.mockReturnValue(new Promise((resolve) => { finishReview = resolve; }));
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    await waitFor(() => expect(calls.reviewProblemHandoffSource).toHaveBeenCalledTimes(1));
+    accept(nextProblemHandoff.handoff_url);
+    await screen.findByText(nextProblemHandoff.problem_url);
+    finishReview({
+      repository_path: sourceSnapshot.path,
+      source_repository_url: problemHandoff.source_repository_url,
+      source_revision: problemHandoff.source_revision,
+      selected_head: sourceSnapshot.git.head_commit,
+      remote_matches: true,
+      revision_matches: true,
+      ready: true,
+      note: "Old source review.",
+    });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Return to source" })).not.toBeInTheDocument());
+    expect(screen.getByText(/source selection required/)).toBeVisible();
+  });
+
+  it("does not bind a delayed authority review to a newer Problem", async () => {
+    let finishReview!: (value: Awaited<ReturnType<typeof calls.reviewProblemHandoffAuthority>>) => void;
+    calls.selectRepository.mockResolvedValueOnce(snapshot);
+    calls.reviewProblemHandoff.mockImplementation(async (url: string) => url === nextProblemHandoff.handoff_url ? nextProblemHandoff : problemHandoff);
+    calls.reviewProblemHandoffAuthority.mockReturnValue(new Promise((resolve) => { finishReview = resolve; }));
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local Repository" }));
+    await waitFor(() => expect(calls.reviewProblemHandoffAuthority).toHaveBeenCalledTimes(1));
+    accept(nextProblemHandoff.handoff_url);
+    await screen.findByText(nextProblemHandoff.problem_url);
+    finishReview({
+      repository_path: snapshot.path,
+      authority_repository_url: problemHandoff.authority_repository_url,
+      repository_id: "vela-math",
+      remote_matches: true,
+      vela_repository: true,
+      ready: true,
+      note: "Old authority review.",
+    });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Continue to Repository" })).not.toBeInTheDocument());
+    expect(screen.getByText(/Repository selection required/)).toBeVisible();
+  });
+
+  it("revokes source readiness when refresh finds checkout drift", async () => {
+    calls.selectRepository.mockResolvedValueOnce(sourceSnapshot);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    expect(await screen.findByText(/exact source selected/)).toBeVisible();
+    const drifted = { ...sourceSnapshot, git: { ...sourceSnapshot.git, head_commit: "e".repeat(40) } };
+    calls.inspectRepository.mockResolvedValueOnce(drifted);
+    calls.reviewProblemHandoffSource.mockResolvedValueOnce({
+      repository_path: sourceSnapshot.path,
+      source_repository_url: problemHandoff.source_repository_url,
+      source_revision: problemHandoff.source_revision,
+      selected_head: drifted.git.head_commit,
+      remote_matches: true,
+      revision_matches: false,
+      ready: false,
+      note: "The source remote matches, but the selected checkout is at a different revision.",
+    });
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText(/source mismatch/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Return to source" })).not.toBeInTheDocument();
+    expect(screen.getByText("Selected local repository")).toBeVisible();
+  });
+
+  it("keeps the Problem draft but clears repository evidence on a bound refresh", async () => {
+    calls.selectRepository.mockResolvedValueOnce(sourceSnapshot);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    expect(await screen.findByText(/exact source selected/)).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Capture" }));
+    await user.click(screen.getByRole("button", { name: "Choose one file" }));
+    expect((await screen.findAllByText("result.txt")).length).toBeGreaterThan(1);
+    await user.click(screen.getByRole("tab", { name: "Submit" }));
+    await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
+    await user.type(screen.getByLabelText("Bounded result"), "The exact source proves one bounded identity.");
+    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
+    await user.type(screen.getByLabelText("Required independent Check"), "Replay the exact proof source.");
+    calls.inspectRepository.mockResolvedValueOnce(sourceSnapshot);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(calls.reviewProblemHandoffSource).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText("Bounded result")).toHaveValue("The exact source proves one bounded identity.");
+    expect(screen.getByLabelText("Result type")).toHaveValue("theoretical");
+    expect(screen.getByLabelText("Required caveat")).toHaveValue("This does not establish Repository acceptance.");
+    expect(screen.getByLabelText("Required independent Check")).toHaveValue("Replay the exact proof source.");
+    expect(screen.getByText("No repository file evidence is selected.")).toBeVisible();
+  });
+
+  it("revokes Repository readiness when refresh finds remote or Vela drift", async () => {
+    calls.selectRepository.mockResolvedValueOnce(snapshot);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local Repository" }));
+    expect(await screen.findByRole("button", { name: "Continue to Repository" })).toBeVisible();
+    const drifted = { ...snapshot, classification: "git_only" as const, git: { ...snapshot.git, remotes: [] } };
+    calls.inspectRepository.mockResolvedValueOnce(drifted);
+    calls.reviewProblemHandoffAuthority.mockResolvedValueOnce({
+      repository_path: snapshot.path,
+      authority_repository_url: problemHandoff.authority_repository_url,
+      repository_id: null,
+      remote_matches: false,
+      vela_repository: false,
+      ready: false,
+      note: "The selected checkout does not match the handoff authority Repository.",
+    });
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText(/Repository mismatch/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Continue to Repository" })).not.toBeInTheDocument();
+    expect(screen.getByText("Selected local repository")).toBeVisible();
+  });
+
+  it("clears prior Problem draft and evidence when a new handoff is accepted", async () => {
+    calls.selectRepository.mockResolvedValueOnce(sourceSnapshot);
+    calls.reviewProblemHandoff.mockImplementation(async (url: string) => url === nextProblemHandoff.handoff_url ? nextProblemHandoff : problemHandoff);
+    const user = userEvent.setup(); render(<App />);
+    await waitFor(() => expect(deepLinks.observe).toHaveBeenCalledTimes(1));
+    const accept = deepLinks.observe.mock.calls[0][0] as (url: string) => void;
+    accept(problemHandoff.handoff_url);
+    await screen.findByText(problemHandoff.problem_url);
+    await user.click(screen.getByRole("button", { name: "Choose local source" }));
+    await user.click(screen.getByRole("tab", { name: "Capture" }));
+    await user.click(screen.getByRole("button", { name: "Choose one file" }));
+    expect((await screen.findAllByText("result.txt")).length).toBeGreaterThan(1);
+    await user.click(screen.getByRole("tab", { name: "Submit" }));
+    await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
+    await user.type(screen.getByLabelText("Bounded result"), "Old Problem Result.");
+    await user.type(screen.getByLabelText("Required caveat"), "Old caveat.");
+    accept(nextProblemHandoff.handoff_url);
+    await screen.findByText(nextProblemHandoff.problem_url);
+    expect(screen.getByLabelText("Bounded result")).toHaveValue("");
+    expect(screen.getByLabelText("Result type")).toHaveValue("computational");
+    expect(screen.getByLabelText("Required caveat")).toHaveValue("");
+    expect(screen.getByText("No repository file evidence is selected.")).toBeVisible();
   });
 
   it("orients from a selected repository and exposes only exact handoffs", async () => {

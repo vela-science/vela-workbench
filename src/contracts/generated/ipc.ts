@@ -10,6 +10,8 @@ export type ProblemHandoffDto = { schema: string, handoff_url: string, problem_u
 
 export type ProblemHandoffSourceDto = { repository_path: string, source_repository_url: string, source_revision: string, selected_head: string, remote_matches: boolean, revision_matches: boolean, ready: boolean, note: string, };
 
+export type ProblemHandoffAuthorityDto = { repository_path: string, authority_repository_url: string, repository_id: string | null, remote_matches: boolean, vela_repository: boolean, ready: boolean, note: string, };
+
 export type RepositoryClassificationDto = "vela_repository" | "native_integration" | "git_only";
 
 export type VelaBinaryStateDto = "signed_runtime_baseline" | "unsupported";
