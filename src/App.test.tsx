@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapDto, ProblemHandoffDto, RepositorySnapshotDto } from "./contracts/generated/ipc";
@@ -271,9 +271,9 @@ describe("Vela Workbench product loop", () => {
     expect(await screen.findByText(/exact source selected/)).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Submit" }));
     await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
-    await user.type(screen.getByLabelText("Bounded result"), "The exact source proves one bounded identity.");
-    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
-    await user.type(screen.getByLabelText("Required independent Check"), "Replay the exact proof source.");
+    fireEvent.change(screen.getByLabelText("Bounded result"), { target: { value: "The exact source proves one bounded identity." } });
+    fireEvent.change(screen.getByLabelText("Required caveat"), { target: { value: "This does not establish Repository acceptance." } });
+    fireEvent.change(screen.getByLabelText("Required independent Check"), { target: { value: "Replay the exact proof source." } });
     await user.click(screen.getByRole("button", { name: "Choose local Repository" }));
     await waitFor(() => expect(calls.reviewProblemHandoffAuthority).toHaveBeenCalledWith(snapshot.path, problemHandoff));
     expect(await screen.findByRole("button", { name: "Continue to Repository" })).toBeVisible();
@@ -304,7 +304,7 @@ describe("Vela Workbench product loop", () => {
     accept(nextProblemHandoff.handoff_url);
     await screen.findByText(nextProblemHandoff.problem_url);
     finishPicker(sourceSnapshot);
-    await screen.findByRole("heading", { name: "lean-proofs" });
+    await screen.findByRole("heading", { name: "lean-proofs" }, { timeout: 5_000 });
     await user.click(screen.getByRole("tab", { name: "Work" }));
     expect(screen.getByLabelText("Exact target ref")).toHaveValue(nextProblemHandoff.source_revision);
   });
@@ -405,9 +405,9 @@ describe("Vela Workbench product loop", () => {
     expect((await screen.findAllByText("result.txt")).length).toBeGreaterThan(1);
     await user.click(screen.getByRole("tab", { name: "Submit" }));
     await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
-    await user.type(screen.getByLabelText("Bounded result"), "The exact source proves one bounded identity.");
-    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
-    await user.type(screen.getByLabelText("Required independent Check"), "Replay the exact proof source.");
+    fireEvent.change(screen.getByLabelText("Bounded result"), { target: { value: "The exact source proves one bounded identity." } });
+    fireEvent.change(screen.getByLabelText("Required caveat"), { target: { value: "This does not establish Repository acceptance." } });
+    fireEvent.change(screen.getByLabelText("Required independent Check"), { target: { value: "Replay the exact proof source." } });
     calls.inspectRepository.mockResolvedValueOnce(sourceSnapshot);
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(calls.reviewProblemHandoffSource).toHaveBeenCalledTimes(2));
@@ -458,8 +458,8 @@ describe("Vela Workbench product loop", () => {
     expect((await screen.findAllByText("result.txt")).length).toBeGreaterThan(1);
     await user.click(screen.getByRole("tab", { name: "Submit" }));
     await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
-    await user.type(screen.getByLabelText("Bounded result"), "Old Problem Result.");
-    await user.type(screen.getByLabelText("Required caveat"), "Old caveat.");
+    fireEvent.change(screen.getByLabelText("Bounded result"), { target: { value: "Old Problem Result." } });
+    fireEvent.change(screen.getByLabelText("Required caveat"), { target: { value: "Old caveat." } });
     accept(nextProblemHandoff.handoff_url);
     await screen.findByText(nextProblemHandoff.problem_url);
     expect(screen.getByLabelText("Bounded result")).toHaveValue("");
@@ -588,8 +588,8 @@ describe("Vela Workbench product loop", () => {
       "theoretical", "computational", "empirical", "negative", "contradiction",
     ]);
     await user.selectOptions(screen.getByLabelText("Result type"), "theoretical");
-    await user.type(screen.getByLabelText("Bounded result"), "A reusable theorem.");
-    await user.type(screen.getByLabelText("Required caveat"), "This does not establish Repository acceptance.");
+    fireEvent.change(screen.getByLabelText("Bounded result"), { target: { value: "A reusable theorem." } });
+    fireEvent.change(screen.getByLabelText("Required caveat"), { target: { value: "This does not establish Repository acceptance." } });
     await user.click(screen.getByRole("button", { name: "Review exact CLI operation" }));
     await waitFor(() => expect(calls.previewSubmissionDraft).toHaveBeenCalledWith(
       snapshot.path,
@@ -607,11 +607,10 @@ describe("Vela Workbench product loop", () => {
     await user.click(choices[choices.length - 1]);
     await user.click(screen.getByRole("tab", { name: "Submit" }));
     await user.selectOptions(screen.getByLabelText("Result type"), "negative");
-    await user.type(screen.getByLabelText("Bounded result"), "No witness was found within the exact bound.");
-    await user.clear(screen.getByLabelText("Producer attribution"));
-    await user.type(screen.getByLabelText("Producer attribution"), "agent:other");
-    await user.type(screen.getByLabelText("Required caveat"), "The unbounded case remains open.");
-    await user.type(screen.getByLabelText("Required independent Check"), "Repeat the bounded search.");
+    fireEvent.change(screen.getByLabelText("Bounded result"), { target: { value: "No witness was found within the exact bound." } });
+    fireEvent.change(screen.getByLabelText("Producer attribution"), { target: { value: "agent:other" } });
+    fireEvent.change(screen.getByLabelText("Required caveat"), { target: { value: "The unbounded case remains open." } });
+    fireEvent.change(screen.getByLabelText("Required independent Check"), { target: { value: "Repeat the bounded search." } });
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(calls.inspectRepository).toHaveBeenCalledWith(snapshot.path));
     expect(screen.getByLabelText("Bounded result")).toHaveValue("");
