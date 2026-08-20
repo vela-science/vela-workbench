@@ -99,13 +99,13 @@ printf '  sbom tool:     syft %s\n' "$syft_version"
 bun install --frozen-lockfile
 bun run check
 assert_source_state
-CI=1 bun run tauri build --no-bundle --no-sign -- --locked
+CI=true bun run tauri build --no-bundle --no-sign -- --locked
 assert_source_state
 rm -rf -- "$app_path"
 rm -f -- "$dmg_path" "${dmg_path}.sha256" \
   "$dmg_sbom_path" "${dmg_sbom_path}.sha256" \
   "$source_sbom_path" "${source_sbom_path}.sha256"
-APPLE_SIGNING_IDENTITY="$signing_identity" APPLE_API_ISSUER="$api_issuer" APPLE_API_KEY="$api_key" APPLE_API_KEY_PATH="$api_key_path" CI=1 bun run tauri bundle --bundles app,dmg --ci
+APPLE_SIGNING_IDENTITY="$signing_identity" APPLE_API_ISSUER="$api_issuer" APPLE_API_KEY="$api_key" APPLE_API_KEY_PATH="$api_key_path" CI=true bun run tauri bundle --bundles app,dmg --ci
 assert_source_state
 
 [ -d "$app_path" ] || fail "expected app bundle was not produced"
