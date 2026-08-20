@@ -1,6 +1,7 @@
-# Phase 1 inheritance benchmark — terminal prelaunch record
+# Phase 1 inheritance benchmark — terminal prelaunch records
 
-Status: **stopped before candidate launch; no Phase 1 result exists**. Benchmark
+Status: **all authorized successors stopped before candidate launch; no Phase 1
+result exists**. Benchmark
 task `01a01da2-e354-7453-a60b-aa044d111971` is the sole owner of fixtures,
 runner, candidate sessions, scoring and independent review. Workbench must not
 implement or duplicate them. No benchmark output is a Result, scoped Check,
@@ -104,13 +105,51 @@ assignments; **zero** candidate sessions, records, retries, launches,
 checkpoints, scores or launch-authorization records. The held-out key remained
 absent from candidate-visible bytes.
 
+## Deterministic host-gate successor
+
+A later, separately authorized successor replaced reviewer narrative with a
+host-enforced qualification gate. Its first qualification stopped after 131
+profiles when profile 132 left an OrbStack-reparented shell zombie; retained
+failure receipt SHA-256:
+`f824aec7fd25d9f0be1a1ddff22f0706e68235d944a92c215acab3bc58849a1b`.
+
+The one authorized disposable-VM restart retained VM ID
+`01M0F8HWQQHRQCC8DETVCD4QFA` and runtime root
+`sha256:56f72ef619720da0a798aff8ebebfc58afe27e75f0b8d86e7c21348514ddb35d`.
+It passed all 160 profiles and 3,362 boundary probes, authentication-parent
+diagnostics, forced process-tree cancellation and final zero-residue/zero-zombie
+cleanup. Host receipt SHA-256:
+`1f80478566c2df186d986270acc4241ffd1086c8c9b4164227340ffbb77235e5`.
+
+Sealing then failed the mandatory two-fresh-pass byte-stability gate. The bound
+runtime archive reported 126,835,832 bytes, but a fresh stream returned zero
+bytes and empty SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+A later full read returned expected
+SHA-256 `8b4cdb7559c08790ed350de0fda04df3000d2b13dfb12529f18f03b8d6e07694`;
+that recovery did not cure the failed stability proof. Anomaly receipt SHA-256:
+`2242c30f26886e894e87232b5a955446f85ba904119b1d76c02ebe54dd890aa8`.
+
+The frozen input manifest `34065aac98ba541a0f342dad28a523c76b349359971cf745719a6da4a6b50b60`,
+run plan `195932762eb03edffc5081041e27785b4e53581f67ad3be2ac7b04a18c296958`
+and equivalence proof
+`b83ed2370d7b1f4efd74a3d7db9edf611ca8928f317c7b674ef1e4247db40386`
+remained unchanged. This successor produced zero candidate or reviewer calls,
+candidate launches, candidate retries, authorizations, checkpoints, scoring
+runs or held-out-key content accesses. Its machine report SHA-256 is
+`536fcd37f6ef946b00a98c28cbae8043463b9a33910d07db048b9ed433658be1`;
+human report SHA-256 is
+`c238591322e7c98435d68449599228322e1212fdc97857ae768bfe79762f3c48`.
+This is host-filesystem/provider-loss readability evidence only—not benchmark,
+Vela, Git or scientific evidence.
+
 ## No-go boundary
 
-Phase 1 must not resume by weakening isolation, silently retrying the reviewer,
-or asking another model to attest to controls it did not execute. Any later
-successor requires a new explicit authorization and a deterministic host-owned
-prelaunch gate proving all of the following without relying on reviewer
-narrative:
+Phase 1 must not resume by weakening isolation, silently retrying a reviewer,
+accepting recovered bytes after a failed stability observation, or asking a
+model to attest to controls it did not execute. Any later successor requires a
+new explicit authorization and a deterministic host-owned prelaunch gate
+proving all of the following without relying on reviewer narrative:
 
 - the candidate sees exactly one frozen fixture and its answer schema, never a
   held-out key, another fixture, host home or benchmark control file;
@@ -132,8 +171,9 @@ are not candidate records.
 ## Decision use
 
 Phase 0 remains the only scored inheritance evidence and is descriptive and
-internal. Phase 1 supplies a no-go about this runner's prelaunch reviewer, not a
-finding about Vela, Git, Formal Conjectures, KernelBench or any scientific
-candidate. Do not reproduce scoring or tune Vela from these failed controls.
+internal. Phase 1 supplies prelaunch no-go evidence about the reviewer control
+and later host/archive readability, not a finding about Vela, Git, Formal
+Conjectures, KernelBench or any scientific candidate. Do not reproduce scoring
+or tune Vela from these failed controls.
 Nothing here unfreezes Core or Workbench: new machinery still requires the same
 concrete blocking failure from at least two real maintained Result consumers.
