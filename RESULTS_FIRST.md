@@ -124,6 +124,26 @@ still marks the intended large-`m` problem open. No skill change was justified:
 two CLEAN cases and one already-documented material case did not establish the
 same new failure twice.
 
+A later nonpublishing Erdős 430 dogfood run is a funnel-control measurement,
+not a Result or Check. GitHub run `32336112232` was bound to candidate head
+`84804da2e04a307be223f7dc067704619ca759c1` and input root
+`sha256:686eb629233dd0a25090c875c00f003971cf6e865e93f23b104051fadbba7f62`.
+The deterministic lane passed its 8,054-job Lean build, warnings/style,
+diff-check and import-policy gates in 187.425s. The AI source-fidelity lane
+terminated `error_max_budget_usd` after 447.543s and $1.0443573, exceeding its
+$1 cap by $0.0443573 and reporting 26 turns despite `maxTurns: 20`. It emitted
+no structured receipt, so semantic findings, false-positive count,
+aggregation, escalation, human disposition and publication all remain unknown
+or skipped. The terminal outcome is typed `ERROR-INCONCLUSIVE`, never candidate
+pass/fail. Machine record SHA-256:
+`6aae4c7c213d42407a58a606368c8aa1a1ec1e913193e8999712dc06b0353154`.
+Do not pay for another run until maximum-turn and hard-budget enforcement are
+observable and reliable. This one workflow failure does not meet the repeated
+real-Result threshold for Core or Workbench machinery. The conservative
+validator correction at `06563ebad751b85f89cbd0ff94602e3145d32f15` should
+proceed only through the FC fork's ordinary review path; it neither repairs nor
+reclassifies this run.
+
 The same-information inheritance benchmark is owned by Codex task
 `01a01da2-e354-7453-a60b-aa044d111971`. Consume its frozen result in the pilot
 go/no-go; do not add a second runner or benchmark implementation here.
