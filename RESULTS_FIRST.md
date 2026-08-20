@@ -10,8 +10,9 @@ Frozen source observations, 2026-08-20:
 
 - Vela Core `bf7a0911ef041904fcce89f77c9c569a32ad2269`, signed reader
   `0.977.3` with macOS SHA-256 `3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad`;
-- Math `0ee3e94d754e12a6ad5079f32448871fc2182780` with the reviewed
-  candidate packet commit `4624ea801c43b773b5d4a8b795c91e1882d8c02b`;
+- Math main `5de716c896065c03c0a470d015ba2a328a527f73`, with immutable
+  benchmark packet commit `4624ea801c43b773b5d4a8b795c91e1882d8c02b` and dormant,
+  unsent outreach commit `7d35a741f701eab4dde8160e9c30434ee3cbd551`;
 - Formal Conjectures `9f5ee773841921f460b4a26a3552f5eca4accaa0`;
 - lean-proofs `852ffa6b50f3501a66d7ffbc116d8ae9b749c60c`;
 - FAR `0f498a7e9252affd478cbfe324f51ea6d0119331`; and
@@ -22,31 +23,36 @@ has agreed to it; actor difference, a green build, a model judgement, or an FC
 review does not fill that role. `Intended authority` is likewise an operational
 destination, not authority already granted to a person or repository.
 
-## Ten candidates
+## Ten cases
 
-| # | Candidate and exact source | Source owner / producer | Independent checker | Intended Repository authority | Current status | Next human action | Present failure reason |
+`Axis` states why a case is retained. CLEAN quality-control cases remain useful
+for cold-successor measurement but are not promoted into substantive Results.
+
+| # | Candidate and exact source | Source owner / producer | Required independent Check | Intended Repository authority | Current evidence | Blocker and dormant future gate | Axis |
 |---|---|---|---|---|---|---|---|
-| 1 | Erdős 321 status conflict; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, teorth/erdosproblems `931e7db4ee3c97705598f802e8358a201b9e422c`; Math packet `erdos-321-status-conflict.md` at `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | teorth/erdosproblems, curated by Thomas Bloom / producer unassigned until scope is resolved | Unassigned; must compare each occurrence and rerun the official mismatch and known-result checks | Existing Math authority is in scope only after the source contradiction is resolved | Reviewed packet merged; FC and Math say open while source YAML says solved; FC #4444 remains open | Thomas resolves #4444 with an exact source/literature scope decision | The candidate assertion is not stable enough to submit |
-| 2 | Erdős 750 conditional Stiebitz result; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, Shashi456/erdos-formalizations `286f856aa3fc08957b80950fd18a45aab8d045ea`; Math packet at `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | Shashi456 / Shashi456 if they elect to sponsor the exact result | Unassigned; exact build, `#print axioms`, full `Type` versus `Type*` fidelity, and Stiebitz-spec review | A new, separately scoped Repository with an explicitly named authority; current Math excludes 750 | Reviewed packet merged; proof closure adds `Erdos750.stiebitz_lower_bound` | Shashi456 states whether to sponsor the result and accept or discharge the Stiebitz dependency | Conditional dependency is unresolved and current Math is out of scope |
-| 3 | Erdős 56 transitive native-decision result; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, plby/lean-proofs `bebe632f2f6227a40e00b145bfbf7b3e1d68f8c2`; Math packet at `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | plby / plby if they elect to sponsor the exact result | Unassigned; exact Lean 4.24 build, full type fidelity, transitive axiom closure, and trust/licence review | A new, separately scoped Repository with an explicitly named authority; current Math excludes 56 | Reviewed packet merged; closure adds `Lean.ofReduceBool` and `Lean.trustCompiler` | plby states intended compiled-reduction trust, whether a replacement is welcome, and applicable contribution terms | Trust policy and source licence are unresolved; current Math is out of scope |
-| 4 | Hadamard 668; FC PR #4900 head `1721605c41f1bad11f592c2606618c539c43dc1f`, Paul-Lez wrapper `da94bc80401b6ece36d8dd2f5c316755fd97dd65` | Paul Lezeau / Paul Lezeau | Unassigned; exact source-fidelity and Comparator replay by a non-producer | Vela Repository authority unassigned; FC maintainers separately own source admission | Draft/review-required; FC build and Comparator run 32030830822 green; no human peer/source review claimed | Paul marks the PR ready and identifies a non-producer reviewer | Draft state and missing independent review |
-| 5 | OEIS A129365, four exact results; FC PR #5016 head `acbeffc22ce2609d25eef324a4755878f3d6c84a`, KitaKen1 proof `9c0201540c337733d6b8afb2aff209f5489c122a` | Kenta Kitamura / Kenta Kitamura; codrut3 owns the umbrella integration | Unassigned; cold exact build and four-target statement-fidelity review | Vela Repository authority unassigned; FC maintainers separately own source admission | Proof signatures match; umbrella CI fails import-linter targets rather than proof checking | Kenta confirms producer scope; codrut3 fixes imports and pins the immutable `formal_proof`; maintainer reviews | Integration build is red and no independent rerun exists |
-| 6 | OEIS A100434 correction plus three proofs; FC PR #5029 head `d5ed44b10fe187542e24dbf68312cc5b8b89afc9`, proof `32f88077a444b83741f1db6734390eebd3678ecf` | chy4pro / chy4pro | Unassigned; exact definition, corrected even-branch sign, and proof replay | Vela correction authority unassigned; FC maintainers separately own source admission | Proposed correction; old statement is refutable at `n = 0`; no full current-head build | chy4pro and a non-producer reviewer freeze correction scope, then an FC maintainer decides | Correction has not received independent fidelity review or maintainer admission |
-| 7 | OEIS A374265 unboundedness correction; FC PR #4946 head `00f8b1898751bb51710f8c46534a8dc11981c6b0`, proof ancestor `ce05cfb9dbe2e5aac6634402ffcc8a38ce368ef7` | Moritz / Moritz | Unassigned; exact process-definition and correction-fidelity review | Vela correction authority unassigned; FC maintainers separately own source admission | Batch CI green; prior bounded direction was false; no approval | Moritz freezes the corrected assertion and requests a non-producer fidelity review | No independent review or maintainer admission |
-| 8 | Erdős 94 `Erdos94.variants.sum_multiplicity`; lean-proofs proof commit `423344341fbfdf4f8f684a302c5d05379125e7dc`, file SHA-256 `412975add8b6963bb44378f5d8ef41fd1f860b9ec06495432ab97e8ca60ffbe0` | William Blair / existing source producer | Unassigned; genuine mathematical and source-fidelity reviewer | Existing Math authority only for an exact justified revision; its current Standing must not be reinterpreted | Source custody and hosted/cold checks pass; only the bounded identity is proved | Recruit a non-producer reviewer or obtain explicit authorization for a later external formal-verification handoff | No genuine independent scientific review; no broader Erdős 94 claim is allowed |
-| 9 | FAR/ProbXiv Ramsey counterexample candidate; ProbXiv locator `on-multicolor-ramsey-number-of-paths-versus-cycles-2`, observed FAR `0f498a7e9252affd478cbfe324f51ea6d0119331` | Source collection/FAR authors; attempt credits a tool, not an accountable producer | Unassigned; reconstruct the counterexample and compare the exact source statement | None selected | ProbXiv remains open; one model attempt and machine judge report a counterexample; no person examined it | A named mathematician adopts the exact candidate and reproduces it from source-safe locators | No durable FAR pilot snapshot, accountable producer, independent check, or authority |
-| 10 | Directed 3-torus Hamilton decomposition; arXiv `2603.24708v1`, Torus source `753cbe37dc6428b15f5109b801301115ec61eb5d`, ProbXiv locator `directed-3-torus-hamilton` | SangHyun Park / producer participation not established | Unassigned; cold replay of the exact d=3 files plus independent statement fidelity | None selected | ProbXiv says solved and Lean-checked but explicitly says no person examined it and compilation does not prove fidelity | Ask Park whether the exact d=3 result may enter a source-owned review, then recruit a non-producer checker | No evidenced willingness, independent fidelity check, or Repository authority |
+| 1 | Erdős 321 status conflict; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, teorth/erdosproblems `931e7db4ee3c97705598f802e8358a201b9e422c`; Math packet `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | teorth/erdosproblems, curated by Thomas Bloom / producer unassigned until scope is resolved | Source owner identifies the exact result and an unconflicted checker compares every occurrence, then reruns the official mismatch and known-result checks | Existing Math authority is in scope only after contradiction resolution | Reviewed packet merged; FC and Math say open while source YAML says solved; FC #4444 is open | Assertion is not stable enough to submit; Thomas supplies the controlling scope and citation in #4444 | discovery, scope, correction |
+| 2 | Erdős 750 conditional Stiebitz result; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, Shashi456/erdos-formalizations `286f856aa3fc08957b80950fd18a45aab8d045ea`; Math packet `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | Shashi456 / Shashi456 only if they elect to sponsor the exact result | Non-producer exact build, `#print axioms`, full `Type` versus `Type*` fidelity and Stiebitz-spec/reference review | New separately scoped Repository and named authority; current Math excludes 750 | Reviewed packet merged; closure adds `Erdos750.stiebitz_lower_bound`; FC conditional metadata is correct | Dependency and sponsorship unresolved; Shashi456 decides whether to sponsor and accept or discharge it | scope, trust, cold-successor |
+| 3 | Erdős 56 transitive native-decision result; FC `9f5ee773841921f460b4a26a3552f5eca4accaa0`, plby/lean-proofs `bebe632f2f6227a40e00b145bfbf7b3e1d68f8c2`; Math packet `4624ea801c43b773b5d4a8b795c91e1882d8c02b` | plby / plby only if they elect to sponsor the exact result | Non-producer Lean 4.24 build, full theorem-type fidelity, transitive axiom closure and owner trust/licence-policy review | New separately scoped Repository and named authority; current Math excludes 56 | Reviewed packet merged; closure adds `Lean.ofReduceBool` and `Lean.trustCompiler`; no licence file observed | Trust, licence and sponsorship unresolved; plby states intended trust path, replacement interest and contribution terms | trust/licence, cold-successor |
+| 4 | Paul batch #8, `Erdos461.erdos_461`; source branch head `fc772f15aa14e01a081c4bdb6a7472f2ea95e65f`, exact base `398958d3964d738886bd24433918c365df4a2aab` | Paul Lezeau / Paul Lezeau; FC convention Apache-2.0, source-page text not relicensed | Unassigned non-producer source-fidelity review if the case is ever promoted beyond quality control | Vela authority unassigned; FC maintainers separately own source admission | Current-skill review CLEAN in 87s; focused local Lean and reviewer build passed | No substantive Result gap presently identified; Paul and FC maintainers handle existing nits and draft readiness | scope, cold-successor |
+| 5 | Paul batch #9, `Erdos545.erdos_545`; source branch head `f11eee52f0189ec222247f855397006fb1cd8f4e`, exact base `398958d3964d738886bd24433918c365df4a2aab` | Paul Lezeau / Paul Lezeau; FC convention Apache-2.0, source-page text not relicensed | Source owner defines the intended large-`m` regime; a non-producer then compares the corrected main declaration and retained literal-negative variant to the exact source | Vela correction authority unassigned; FC maintainers separately own source admission | Current-skill review NEEDS REVISION in 89s; builds passed; declaration proves falsity of the unrestricted small-`m` statement while source remains OPEN | This is the only substantive FC throughput Result candidate; Paul/source owner clarifies scope, then maintainers review the correction | scope, correction, cold-successor |
+| 6 | Paul batch #10, `Erdos550.erdos_550`; source branch head `735440a72e3b0f1dbb25b83682438cecc3b6476f`, exact base `398958d3964d738886bd24433918c365df4a2aab` | Paul Lezeau / Paul Lezeau; FC convention Apache-2.0, source-page text not relicensed | Unassigned non-producer source-fidelity review if the case is ever promoted beyond quality control | Vela authority unassigned; FC maintainers separately own source admission | Current-skill review CLEAN in 68s; focused local Lean and reviewer build passed | No substantive Result gap presently identified; Paul and FC maintainers handle existing nits and draft readiness | scope, cold-successor |
+| 7 | Hadamard 668; FC PR #4900 head `1721605c41f1bad11f592c2606618c539c43dc1f`, Apache-2.0 Paul-Lez wrapper `da94bc80401b6ece36d8dd2f5c316755fd97dd65` | Paul Lezeau / Paul Lezeau | Non-producer exact source-fidelity review and Comparator replay | Vela authority unassigned; FC maintainers separately own source admission | Draft/review-required; FC build and Comparator run 32030830822 green; no human peer/source review claimed | Paul marks the PR ready and identifies a non-producer reviewer | trust, cold-successor |
+| 8 | Erdős 94 `Erdos94.variants.sum_multiplicity`; MIT lean-proofs commit `423344341fbfdf4f8f684a302c5d05379125e7dc`, file SHA-256 `412975add8b6963bb44378f5d8ef41fd1f860b9ec06495432ab97e8ca60ffbe0` | William Blair / existing source producer | Genuine non-producer mathematical and source-fidelity review | Existing Math authority only for an exactly justified revision; current Standing must not be reinterpreted | Source custody, hosted verify and cold build/axiom evidence pass; only `sum_multiplicity` is proved | No genuine independent scientific review; recruit one or obtain separately authorized external formal-verification handoff | trust, correction, cold-successor |
+| 9 | FAR/ProbXiv Ramsey counterexample candidate; ProbXiv locator `on-multicolor-ramsey-number-of-paths-versus-cycles-2`, Apache-2.0 FAR pipeline `0f498a7e9252affd478cbfe324f51ea6d0119331` | Source collection/FAR authors; attempt credits a tool, not an accountable producer | Named mathematician reconstructs the counterexample and compares the exact source statement | None selected | ProbXiv remains open; one model attempt and machine judge report a counterexample; no person examined it | No durable pilot snapshot, accountable producer, checker or authority; a mathematician must first adopt the exact candidate | discovery, scope, cold-successor |
+| 10 | Directed 3-torus Hamilton decomposition; arXiv `2603.24708v1`, MIT Torus source `753cbe37dc6428b15f5109b801301115ec61eb5d`, ProbXiv locator `directed-3-torus-hamilton` | SangHyun Park / producer participation not established | Cold replay of exact d=3 files plus independent source-statement fidelity | None selected | ProbXiv says solved and Lean-checked but explicitly says no person examined it and compilation does not prove fidelity | No evidenced willingness, checker or authority; ask Park whether the exact d=3 Result may enter source-owned review | discovery, trust, cold-successor |
 
 ProbXiv exposes no observed content licence, public API, export, or
-provider-independent snapshot. For candidates 9 and 10 retain only public
+provider-independent snapshot. For cases 9 and 10 retain only public
 locators, short factual observations, dates, and digests; do not copy page
 bodies.
 
-## First five asks — drafts only
+## First five participant packets — dormant drafts only
 
-These messages are ready for user approval. They have not been sent. They ask
-for source decisions or participation, not endorsement of Vela. Full usability
-pilot invitations remain blocked by the gates in [PILOT.md](PILOT.md).
+No outreach or contact is authorized. Do not send, post, DM, comment, open an
+issue or PR, invite a participant, or otherwise act on these drafts. They are
+retained only so a future user authorization can evaluate exact bounded asks;
+even with later authorization, the full usability pilot remains blocked by the
+gates in [PILOT.md](PILOT.md).
 
 ### 1. Thomas Bloom — Erdős 321 source scope
 
@@ -61,7 +67,17 @@ pilot invitations remain blocked by the gates in [PILOT.md](PILOT.md).
 > that source decision is explicit. This is a scope check, not a request to
 > endorse Vela.
 
-### 2. Shashi456 — Erdős 750 conditional result
+### 2. Paul Lezeau — Erdős 545 source scope
+
+> The current review of your exact Erdős 545 head
+> `f11eee52f0189ec222247f855397006fb1cd8f4e` found that lines 68–74 close the
+> unrestricted statement by the known small-`m` counterexamples, while the
+> source still marks the intended problem OPEN. Under a future authorization,
+> would you state the intended large-`m` regime and whether the literal
+> negative should remain only as a solved variant? We would then arrange a
+> separate non-producer comparison before any Vela Submission or correction.
+
+### 3. Shashi456 — Erdős 750 conditional result
 
 > We reproduced that the exact Erdős 750 proof closure at
 > `286f856aa3fc08957b80950fd18a45aab8d045ea` depends
@@ -72,7 +88,7 @@ pilot invitations remain blocked by the gates in [PILOT.md](PILOT.md).
 > a separate exact-build/type-fidelity Check. The current Math Repository is
 > out of scope and will not admit it.
 
-### 3. plby — Erdős 56 trust and licence
+### 4. plby — Erdős 56 trust and licence
 
 > The exact Erdős 56 theorem at
 > `bebe632f2f6227a40e00b145bfbf7b3e1d68f8c2` has a transitive compiled axiom
@@ -82,7 +98,7 @@ pilot invitations remain blocked by the gates in [PILOT.md](PILOT.md).
 > welcome, and what contribution/licence terms apply to this source? We will
 > not redistribute or submit the Result before those points are explicit.
 
-### 4. Paul Lezeau — Hadamard 668 producer handoff
+### 5. Paul Lezeau — Hadamard 668 producer handoff
 
 > Your Hadamard 668 Comparator wrapper at
 > `da94bc80401b6ece36d8dd2f5c316755fd97dd65` pins FC PR #4900 head
@@ -93,15 +109,34 @@ pilot invitations remain blocked by the gates in [PILOT.md](PILOT.md).
 > a non-producer source-fidelity/replay checker. A green build will not be
 > represented as independent review or a Repository Decision.
 
-### 5. Kenta Kitamura — OEIS A129365 producer handoff
+The dormant outreach order is 1 → 2 → 3 → 4 → 5: resolve the two exact source
+scope conflicts first, then the conditional dependency and trust/licence gates,
+then ask whether the already-green Hadamard wrapper is ready for a separate
+review. This ordering does not authorize any contact.
 
-> We matched all four A129365 theorem signatures in FC PR #5016 head
-> `acbeffc22ce2609d25eef324a4755878f3d6c84a` to your Apache-2.0 proof commit
-> `9c0201540c337733d6b8afb2aff209f5489c122a`. Would you confirm
-> those four exact results as the producer scope and permit that immutable
-> commit to be used as the `formal_proof` locator? The umbrella PR currently
-> fails import-linter checks, not proof checking; after the integration fix we
-> would ask a separate person for a cold build and statement-fidelity Check.
+## Actionability
+
+Immediately actionable inside the current authorization:
+
+- preserve and independently review these operating records;
+- consume the benchmark task's final Phase 0 review without reproducing its
+  scoring; and
+- keep exact source heads, rights and blocker classifications current through
+  read-only checks.
+
+Dormant future gates requiring new authorization or another owner:
+
+- every participant packet and source-owner contact above;
+- recruitment of any independent checker or Repository authority;
+- the FC fork's ordinary review/merge decision for validator correction
+  `06563ebad751b85f89cbd0ff94602e3145d32f15`;
+- Apple credential handoff and signed/notarized Workbench distribution; and
+- Web support, deployment and public-readback qualification.
+
+Deliberately rejected now: sending outreach, rerunning Erdős 430, running Phase
+1 before Phase 0 review, creating a profile migration for out-of-scope Math
+cases, copying ProbXiv page bodies, or adding Core/Workbench/Web features,
+schemas, services or provider configuration.
 
 ## Outcome counters
 
