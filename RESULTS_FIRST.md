@@ -119,8 +119,8 @@ review. This ordering does not authorize any contact.
 Immediately actionable inside the current authorization:
 
 - preserve and independently review these operating records;
-- consume the benchmark task's final Phase 0 review without reproducing its
-  scoring; and
+- consume the benchmark task's final Phase 0 review and terminal Phase 1
+  prelaunch no-go without reproducing its scoring or runner; and
 - keep exact source heads, rights and blocker classifications current through
   read-only checks.
 
@@ -133,10 +133,11 @@ Dormant future gates requiring new authorization or another owner:
 - Apple credential handoff and signed/notarized Workbench distribution; and
 - Web support, deployment and public-readback qualification.
 
-Deliberately rejected now: sending outreach, rerunning Erdős 430, running Phase
-1 before Phase 0 review, creating a profile migration for out-of-scope Math
-cases, copying ProbXiv page bodies, or adding Core/Workbench/Web features,
-schemas, services or provider configuration.
+Deliberately rejected now: sending outreach, rerunning Erdős 430, restarting
+Phase 1 by weakening isolation or relying on reviewer narrative, creating a
+profile migration for out-of-scope Math cases, copying ProbXiv page bodies, or
+adding Core/Workbench/Web features, schemas, services or provider
+configuration.
 
 ## Outcome counters
 
@@ -181,4 +182,8 @@ reclassifies this run.
 
 The same-information inheritance benchmark is owned by Codex task
 `01a01da2-e354-7453-a60b-aa044d111971`. Consume its frozen result in the pilot
-go/no-go; do not add a second runner or benchmark implementation here.
+go/no-go; do not add a second runner or benchmark implementation here. Phase 1
+stopped before candidate launch after its single successor reviewer failed to
+execute the mandatory ordinary-tool probe. It produced zero candidate sessions,
+records, retries, checkpoints, scores or launch authorization. Exact terminal
+bindings and nonclaims are recorded in [PHASE1_BENCHMARK.md](PHASE1_BENCHMARK.md).

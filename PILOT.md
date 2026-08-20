@@ -2,7 +2,7 @@
 
 The current ten-candidate operating roster, five unsent participant asks, and
 outcome counters are frozen in [RESULTS_FIRST.md](RESULTS_FIRST.md).
-The dormant Phase 1 benchmark envelope is in
+The terminal Phase 1 prelaunch no-go is in
 [PHASE1_BENCHMARK.md](PHASE1_BENCHMARK.md); external outcomes are counted only
 through [RECURRENCE_LEDGER.md](RECURRENCE_LEDGER.md).
 
