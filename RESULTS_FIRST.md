@@ -140,7 +140,8 @@ Deliberately rejected now: sending outreach, rerunning Erdős 430, restarting
 Phase 1 by weakening isolation or relying on reviewer narrative, creating a
 profile migration for out-of-scope Math cases, copying ProbXiv page bodies, or
 adding Core/Workbench/Web features, schemas, services or provider
-configuration.
+configuration. The 50-case Result Campaign is also stopped at Stage 0; no
+additional environment generation or paid run is authorized.
 
 ## Outcome counters
 
@@ -207,6 +208,22 @@ review wrapper `8f93b8e07d6176cbc7c71ff37aa6ac93d0f054e1`, review SHA-256
 `2425fb401a8437458967be9113962d00dd3ed12c95cb1300a563b6e9ed1f7738`.
 All factory branches remain local and unmerged; RF-03's rights conflict forbids
 publishing the combined tranche as-is.
+
+The later 50-case Result Campaign froze a rights-safe source corpus and exact
+budget/allocation artifacts, but it produced no scientific attempt. Its final
+successor payload was stable and passed archive, BusyBox portability,
+environment and cgroup preflights; the last ancillary actor-environment command
+omitted `orbctl run -u`, so the host tried to execute `campaign` and exited 127
+before extraction/genesis. Under the frozen stop rule there was no retry,
+qualification receipt, seal, target VM, model call, spend or Vela action. Exact
+terminal counts are 50 frozen cases, zero producer attempts, zero blind reviews,
+zero inference sessions, $0 spend, zero Results, Checks, Submissions,
+Verifications, Decisions, Events or replays. This is harness-invocation evidence
+only—not an archive, environment, Vela, product or scientific finding. Terminal
+report SHA-256:
+`572cc8e32eef1c20ed839fab931f00ab614bc227ee6f85f756af290a93325a1a`.
+It reinforces the current results-first stop: do not build another campaign
+wrapper without fresh user authority and exact command-path qualification.
 
 A later nonpublishing Erdős 430 dogfood run is a funnel-control measurement,
 not a Result or Check. GitHub run `32336112232` was bound to candidate head
