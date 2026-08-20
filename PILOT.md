@@ -1,5 +1,8 @@
 # External pilot packet
 
+The current ten-candidate operating roster, five unsent participant asks, and
+outcome counters are frozen in [RESULTS_FIRST.md](RESULTS_FIRST.md).
+
 This pilot tests one bounded researcher loop:
 
 ```text
