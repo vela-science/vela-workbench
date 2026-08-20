@@ -60,6 +60,16 @@ Vela product team; it does not imply institutional independence.
 - complete discovery-to-readback observations: **0**, with all ten cases
   currently incomplete at the terminal stages above.
 
-The FC Erdős 430 run `32336112232` and the Phase 0 inheritance benchmark are
-execution/evaluation evidence, not Result loops, and are excluded from every
-denominator above.
+## Operating evidence excluded from recurrence
+
+| Evidence | Exact binding | Observed outcome | Recurrence boundary |
+|---|---|---|---|
+| FC Erdős 430 initial dogfood, run `32336112232` | candidate `84804da2e04a307be223f7dc067704619ca759c1`; input root `sha256:686eb629233dd0a25090c875c00f003971cf6e865e93f23b104051fadbba7f62` | `ERROR-INCONCLUSIVE`: deterministic Lean lane passed, but the AI lane exceeded its provider budget before emitting a receipt | Workflow-control evidence only; not a Result, Check, candidate failure or Decision |
+| FC Erdős 430 control preflight, run `32341123076` | workflow `4e73166ec90aade25a7e3774642aacb1bb08e7b3`; same candidate | `ERROR` before model execution because dispatch supplied the wrong config path; zero artifacts and no rerun in that authorization | Dispatch-path evidence only; not a scientific or recurrence outcome |
+| FC Erdős 430 controlled dogfood, run `32341367291` | workflow `4e73166ec90aade25a7e3774642aacb1bb08e7b3`; candidate `84804da2e04a307be223f7dc067704619ca759c1`; exact config SHA-256 `b83ac690f9c8e7d162d2be2c532903844c805dfe924c1757abbefd322443beef`; measurement record SHA-256 `7e49bd06af557c61215665bc4a31924fc95022e3dee258e35db2064f4a684ed0` | Internal advisory `SUCCESS/no_findings`; source-fidelity review found no disagreement; deterministic 8,054-job Lean lane passed; controls reported $1.16794915/$2.50, 30/40 turns and 620,438/900,000 ms | Successful internal advisory workflow evidence only; no publication, human disposition, independent Check, Submission, Decision, Event or Standing change |
+| Phase 0 inheritance benchmark | preregistration SHA-256 `025fb027f948323afda33a846eb9f07dcf78a56f980b6e54fcfbc6728180bbc8`; sealed archive SHA-256 `5a3404ac0e4108787938a5cb3cab81dc44b9f6c18ad43a85dff717d85a065e45` | Independently reviewed as ready for internal sharing | Evaluation evidence only; not a Result loop or external validation |
+
+Every row above is excluded from every numerator and denominator in this
+ledger. A model advisory, deterministic build, budget receipt or successful
+workflow never supplies producer sponsorship, checker independence, Repository
+authority or public readback.
