@@ -37,7 +37,7 @@ for cold-successor measurement but are not promoted into substantive Results.
 | 5 | Paul batch #9, `Erdos545.erdos_545`; source branch head `f11eee52f0189ec222247f855397006fb1cd8f4e`, exact base `398958d3964d738886bd24433918c365df4a2aab` | Paul Lezeau / Paul Lezeau; FC convention Apache-2.0, source-page text not relicensed | Source owner defines the intended large-`m` regime; a non-producer then compares the corrected main declaration and retained literal-negative variant to the exact source | Vela correction authority unassigned; FC maintainers separately own source admission | Current-skill review NEEDS REVISION in 89s; builds passed; declaration proves falsity of the unrestricted small-`m` statement while source remains OPEN | This is the only substantive FC throughput Result candidate; Paul/source owner clarifies scope, then maintainers review the correction | scope, correction, cold-successor |
 | 6 | Paul batch #10, `Erdos550.erdos_550`; source branch head `735440a72e3b0f1dbb25b83682438cecc3b6476f`, exact base `398958d3964d738886bd24433918c365df4a2aab` | Paul Lezeau / Paul Lezeau; FC convention Apache-2.0, source-page text not relicensed | Unassigned non-producer source-fidelity review if the case is ever promoted beyond quality control | Vela authority unassigned; FC maintainers separately own source admission | Current-skill review CLEAN in 68s; focused local Lean and reviewer build passed | No substantive Result gap presently identified; Paul and FC maintainers handle existing nits and draft readiness | scope, cold-successor |
 | 7 | Hadamard 668; FC PR #4900 head `1721605c41f1bad11f592c2606618c539c43dc1f`, Apache-2.0 Paul-Lez wrapper `da94bc80401b6ece36d8dd2f5c316755fd97dd65` | Paul Lezeau / Paul Lezeau | Non-producer exact source-fidelity review and Comparator replay | Vela authority unassigned; FC maintainers separately own source admission | Draft/review-required; FC build and Comparator run 32030830822 green; no human peer/source review claimed | Paul marks the PR ready and identifies a non-producer reviewer | trust, cold-successor |
-| 8 | Erdős 94 `Erdos94.variants.sum_multiplicity`; MIT lean-proofs commit `423344341fbfdf4f8f684a302c5d05379125e7dc`, file SHA-256 `412975add8b6963bb44378f5d8ef41fd1f860b9ec06495432ab97e8ca60ffbe0` | William Blair / existing source producer | Genuine non-producer mathematical and source-fidelity review | Existing Math authority only for an exactly justified revision; current Standing must not be reinterpreted | Source custody, hosted verify and cold build/axiom evidence pass; only `sum_multiplicity` is proved | No genuine independent scientific review; recruit one or obtain separately authorized external formal-verification handoff | trust, correction, cold-successor |
+| 8 | Erdős 94 `Erdos94.variants.sum_multiplicity`; MIT lean-proofs main `852ffa6b50f3501a66d7ffbc116d8ae9b749c60c`, exact proof blob SHA-256 `412975add8b6963bb44378f5d8ef41fd1f860b9ec06495432ab97e8ca60ffbe0`; frozen RF-01 case `6de3d9b1398f1b4276c0011057784f45dc8e98cb` | William Blair / existing source producer; the Result Factory froze a bounded source Result during this epoch | Genuine non-producer mathematical and source-fidelity review; the completed cold check and disposable Verification are same-provider and internal | Disposable local authority rejected the Proposal because independence was unsatisfied; existing Math authority and Standing remain unchanged | RF-01 Result SHA-256 `e45cd83f128f6f749574e470b75451e526207a489153074e9c7cc81a22a5d2db`; producer checks passed. Disposable Submission `vsb_5e298f3ec5593dea`, Verification `vvr_6b2936496d650c4a`, attributed reject Decision and strict replay passed with zero accepted claims | No independent Check or public readback; the disposable Decision qualifies mechanism only and is excluded from external recurrence | trust, correction, cold-successor |
 | 9 | FAR/ProbXiv Ramsey counterexample candidate; ProbXiv locator `on-multicolor-ramsey-number-of-paths-versus-cycles-2`, Apache-2.0 FAR pipeline `0f498a7e9252affd478cbfe324f51ea6d0119331` | Source collection/FAR authors; attempt credits a tool, not an accountable producer | Named mathematician reconstructs the counterexample and compares the exact source statement | None selected | ProbXiv remains open; one model attempt and machine judge report a counterexample; no person examined it | No durable pilot snapshot, accountable producer, checker or authority; a mathematician must first adopt the exact candidate | discovery, scope, cold-successor |
 | 10 | Directed 3-torus Hamilton decomposition; arXiv `2603.24708v1`, MIT Torus source `753cbe37dc6428b15f5109b801301115ec61eb5d`, ProbXiv locator `directed-3-torus-hamilton` | SangHyun Park / producer participation not established | Cold replay of exact d=3 files plus independent source-statement fidelity | None selected | ProbXiv says solved and Lean-checked but explicitly says no person examined it and compilation does not prove fidelity | No evidenced willingness, checker or authority; ask Park whether the exact d=3 Result may enter source-owned review | discovery, trust, cold-successor |
 
@@ -120,7 +120,10 @@ Immediately actionable inside the current authorization:
 
 - preserve and independently review these operating records;
 - consume the benchmark task's final Phase 0 review and terminal Phase 1
-  prelaunch no-go without reproducing its scoring or runner; and
+  prelaunch records without reproducing its scoring or runner; and
+- consume the five-case Result Factory's exact frozen source, internal-check
+  and disposable-authority receipts without treating same-provider work as
+  independence or external recurrence; and
 - keep exact source heads, rights and blocker classifications current through
   read-only checks.
 
@@ -160,6 +163,51 @@ still marks the intended large-`m` problem open. No skill change was justified:
 two CLEAN cases and one already-documented material case did not establish the
 same new failure twice.
 
+The source-owned Result Factory is also operating evidence outside these
+counters. RF-01 froze the bounded Erdős 94 sum-multiplicity Result at lean-proofs
+case `6de3d9b1398f1b4276c0011057784f45dc8e98cb`; producer checks and a fresh
+same-provider internal check reproduced the exact theorem and whitelist axioms.
+The same case then exercised the signed 0.977.3 lifecycle in a disposable local
+Repository: one Submission and one explicitly nonindependent passing Verification
+were retained, acceptance remained blocked, and an attributed reject Decision
+left zero accepted claims under strict replay. This qualifies the separation of
+Check from Decision; it is not scientific rejection or external recurrence.
+RF-02 froze the scoped Erdős 730 full-density theorem at case
+`22256c7cbca917ce05c11c880f995a3551f474d7`; producer and cached cold checks
+reproduced the whitelist axioms. Two admitted declarations in the pinned
+dependency remain a package-wide trust caveat but do not appear in the target's
+transitive axiom output.
+RF-03 froze the scoped Erdős 23 q2+q2 branch Result at case
+`86030e9113dd9b9f64dce8f9d0ed01ac4bf9f33d`; the exact theorem checks while an
+absent pure-overlap declaration and corrupt patch are rejected as unavailable.
+Its Apache-header/MIT-repository metadata conflict keeps the evidence local and
+nonredistributable.
+RF-05 froze a negative Result for one Erdős 699 normalized-kernel route at case
+`5fd652960e3491088ab8c45634d55ec2bb726c08`: a kernel-checked witness rejects
+global emptiness of that route while boundary theorems show why it is not a
+counterexample to Erdős 699. RF-04 froze infrastructure-inconclusive at reviewed
+case `e10061badd04c16cac1fe8f9eecebbdbd381adb0`: its source-attributed rejection of
+automatic jet inheritance remains separate from the narrower replacement, but
+zero target modules built and no fresh axiom set was produced; two stale embedded
+source-report hashes are not treated as current evidence. None of these
+cases has an independent Check, real-authority Decision, Standing change,
+external recurrence or public readback. Exact bindings and measurements are in
+[RECURRENCE_LEDGER.md](RECURRENCE_LEDGER.md).
+
+The frozen five-case denominator is three bounded positives, one exact
+route-negative and one infrastructure-inconclusive outcome. Four of five cases
+reached fresh target axiom evidence; 6/8 producer target-build invocations
+passed, while only 1/5 cache/setup invocations passed. The dominant repeated
+failure was host-space/cache transport, not theorem checking. The existing
+Git/Lean/Lake/Vela path was sufficient for the pilot, so this evidence does not
+unfreeze Core or Workbench machinery. Reviewed report commit
+`b6c3a97dc2ef1a3acb10178f448aa74d5d40c4ef`, SHA-256
+`4c64ebc00c881d3fcc23199a223fcc6f38358ab2adf4928ba2efeaf8ca9221f1`;
+review wrapper `8f93b8e07d6176cbc7c71ff37aa6ac93d0f054e1`, review SHA-256
+`2425fb401a8437458967be9113962d00dd3ed12c95cb1300a563b6e9ed1f7738`.
+All factory branches remain local and unmerged; RF-03's rights conflict forbids
+publishing the combined tranche as-is.
+
 A later nonpublishing Erdős 430 dogfood run is a funnel-control measurement,
 not a Result or Check. GitHub run `32336112232` was bound to candidate head
 `84804da2e04a307be223f7dc067704619ca759c1` and input root
@@ -183,7 +231,11 @@ reclassifies this run.
 The same-information inheritance benchmark is owned by Codex task
 `01a01da2-e354-7453-a60b-aa044d111971`. Consume its frozen result in the pilot
 go/no-go; do not add a second runner or benchmark implementation here. Phase 1
-stopped before candidate launch after its single successor reviewer failed to
-execute the mandatory ordinary-tool probe. It produced zero candidate sessions,
-records, retries, checkpoints, scores or launch authorization. Exact terminal
-bindings and nonclaims are recorded in [PHASE1_BENCHMARK.md](PHASE1_BENCHMARK.md).
+stopped before candidate launch. An earlier successor reviewer failed to
+execute the mandatory ordinary-tool probe. A later deterministic host-gate
+successor passed 160/160 profiles and 3,362 probes after one authorized VM
+restart, then failed sealing when the bound runtime archive streamed zero bytes
+once. Across those terminal successors there were zero candidate sessions,
+records, candidate retries, checkpoints, scores or launch authorization. Exact
+terminal bindings and nonclaims are recorded in
+[PHASE1_BENCHMARK.md](PHASE1_BENCHMARK.md).
