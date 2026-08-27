@@ -17,8 +17,11 @@ BSD distribution.
 - App version: `0.1.0`
 - Signing: `TODO-SIGNING: Developer ID Application identity (name and team ID) printed by scripts/release-macos.sh`
 - Notarization: App Store Connect API, submission `TODO-SIGNING: notarytool submission id from the release run log`
-- Required Vela Core runtime: signed `v0.977.3`, macOS arm64 binary SHA-256
-  `3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad`
+- Required Vela Core runtime: signed `v0.977.6`, release commit
+  `9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59`, Protocol 1 manifest root
+  `sha256:bf1ef68165bccbc4d2e8a854f78c70448cc7de771bac23329f7a8ca115303f56`,
+  macOS arm64 binary SHA-256
+  `5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3`
 
 ## Assets
 
@@ -59,8 +62,8 @@ xcrun stapler validate "Vela Workbench_0.1.0_aarch64.dmg"
    checks; they are your rollback artifacts.
 3. Launch Workbench once from `/Applications` so macOS registers the
    `vela-workbench://` scheme.
-4. On first run, select the signed Vela Core `v0.977.3` macOS arm64 binary
-   with the SHA-256 above. A locally rebuilt `vela 0.977.3` is a different
+4. On first run, select the signed Vela Core `v0.977.6` macOS arm64 binary
+   with the SHA-256 above. A locally rebuilt `vela 0.977.6` is a different
    binary and is refused.
 5. Start from a Problem on problems.science and choose **Continue locally**.
    Full first-run and handoff steps are in
