@@ -6,15 +6,28 @@ Workbench is currently qualified for Apple-silicon macOS. It does not bundle Vel
 
 Install a signed and notarized Workbench DMG from its recorded release location, verify the published SHA-256 before opening it, drag `Vela Workbench.app` to `/Applications`, and keep the prior DMG until the new build has passed first-run checks. A raw `bun run tauri build` artifact is a development build, not a distributable release.
 
-Workbench also requires the signed Vela Core `v0.977.3` macOS arm64 binary. The accepted binary SHA-256 is:
+Workbench also requires the signed Vela Core `v0.977.6` macOS arm64 release. Acquire `vela-macos-aarch64.zip`, its exact `vela-macos-aarch64.zip.release-manifest.json`, and the matching `.sig` from the [v0.977.6 release](https://github.com/vela-science/vela/releases/tag/v0.977.6). The accepted archive, manifest, signature, and extracted binary SHA-256 values are:
 
 ```text
-3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad
+archive    62ea9006e086b40f0431b2ce2cf74827518f37dc58e329353920083f50dad874
+manifest   596273b718661899ad10cb65d82c8c0d92240939899e72042180ef4912acfa2c
+signature  f4bbfe43dd3528b9a3a2de6f5efd00a7e1585aa1d813cbe09841bf35a42d123b
+binary     5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3
 ```
+
+Verify the manifest against the namespace-scoped `allowed_signers` file at Core commit `9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59` (SHA-256 `dc471fc1ff1960879f39cc52cbe46b87142e1ccfb3b4d567eaae9ac4d26d0d10`) before trusting the archive fields:
+
+```sh
+ssh-keygen -Y verify -f allowed_signers -I release@vela.space \
+  -n vela-release -s vela-macos-aarch64.zip.release-manifest.json.sig \
+  < vela-macos-aarch64.zip.release-manifest.json
+```
+
+The good signature must report `release@vela.space` with fingerprint `SHA256:MX3Eo1o9S5pLnx2kiNyAy2aME7PAWDtvqtUBljJst1M`. Then verify the downloaded archive against the manifest, extract it locally, verify the `vela` binary digest above, and confirm `vela --version` prints exactly `vela 0.977.6`. Workbench does not download, install globally, or substitute these bytes.
 
 On first run:
 
-1. Choose that exact Vela binary. A locally rebuilt `vela 0.977.3` is a different binary and is refused.
+1. Choose that exact Vela binary. A locally rebuilt `vela 0.977.6` is a different binary and is refused.
 2. Start at a Problem on [problems.science](https://problems.science), choose **Continue locally**, and approve the `vela-workbench://` handoff.
 3. Select the source checkout. Workbench requires the exact fetch remote and revision; it never clones or switches the checkout.
 4. Select the authority Repository separately. Workbench requires its exact remote and current Vela Repository state; this does not grant Decision authority.

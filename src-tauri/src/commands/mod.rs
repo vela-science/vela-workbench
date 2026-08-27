@@ -1411,7 +1411,7 @@ pub(crate) async fn preview_submission_draft(
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
             "vela_unavailable",
-            "select the pinned signed Vela v0.977.3 runtime before reviewing a Submission",
+            "select the pinned signed Vela v0.977.6 runtime before reviewing a Submission",
         )
     })?;
     let git = ports::git::inspect(&canonical)?;
@@ -1609,7 +1609,7 @@ fn tranche_three_context(
     let binary = binary.ok_or_else(|| {
         CommandErrorDto::new(
             "vela_unavailable",
-            "select the exact signed Vela v0.977.3 runtime before using Vela Repository actions",
+            "select the exact signed Vela v0.977.6 runtime before using Vela Repository actions",
         )
     })?;
     let git = ports::git::inspect(&repository)?;

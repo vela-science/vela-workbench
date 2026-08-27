@@ -24,16 +24,16 @@ use super::{
     PortError, ProcessOutput, ProcessSpec, ensure_not_truncated, process::utf8, run_bounded,
 };
 
-pub(crate) const INTERFACE_COMMIT: &str = "1c1abe8f365f16803fea889bf9280877992a6d02";
-pub(crate) const INTERFACE_TREE: &str = "66bb4cb5173ff50beeef45c03fa11060e1e9e377";
-pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.3";
-pub(crate) const RUNTIME_COMMIT: &str = "1c1abe8f365f16803fea889bf9280877992a6d02";
+pub(crate) const INTERFACE_COMMIT: &str = "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59";
+pub(crate) const INTERFACE_TREE: &str = "1332713f627ac73c235e4f9a7afe206499717154";
+pub(crate) const RUNTIME_VERSION: &str = "vela 0.977.6";
+pub(crate) const RUNTIME_COMMIT: &str = "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59";
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
-    "3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad";
+    "5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3";
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub(crate) const PLATFORM_RUNTIME_SHA256: &str =
-    "89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0";
+    "e476ece52cb5f356519f890533f06c918fb10f3dd00268092d490701f7fd1b65";
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "linux", target_arch = "x86_64")
@@ -97,6 +97,14 @@ fn accepted_runtime_sha256(digest: &str) -> bool {
     !PLATFORM_RUNTIME_SHA256.is_empty() && digest == PLATFORM_RUNTIME_SHA256
 }
 
+fn runtime_state(digest: &str, version: &str) -> VelaBinaryStateDto {
+    if accepted_runtime_sha256(digest) && version == RUNTIME_VERSION {
+        VelaBinaryStateDto::SignedRuntimeBaseline
+    } else {
+        VelaBinaryStateDto::Unsupported
+    }
+}
+
 pub(crate) fn inspect_binary(path: &Path) -> Result<VelaBinaryDto, PortError> {
     let path = executable(path)?;
     let digest = sha256(&path)?;
@@ -133,11 +141,7 @@ pub(crate) fn inspect_binary(path: &Path) -> Result<VelaBinaryDto, PortError> {
             "selected Vela executable changed during identity verification".into(),
         ));
     }
-    let state = if version == RUNTIME_VERSION {
-        VelaBinaryStateDto::SignedRuntimeBaseline
-    } else {
-        VelaBinaryStateDto::Unsupported
-    };
+    let state = runtime_state(&post_digest, &version);
     Ok(VelaBinaryDto {
         path: path.display().to_string(),
         version,
@@ -503,7 +507,7 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unavailable".into(),
                     code: None,
-                    message: "Select the installed signed Vela v0.977.3 executable to classify this repository.".into(),
+                    message: "Select the installed signed Vela v0.977.6 executable to classify this repository.".into(),
                     hint: None,
                     command: "vela --version".into(),
                     operation_id: None,
@@ -528,8 +532,8 @@ pub(crate) fn inspect_repository(
                     area: "vela_binary".into(),
                     kind: "unsupported".into(),
                     code: None,
-                    message: "Runtime execution is pinned to signed Vela v0.977.3 with the reviewed platform hash.".into(),
-                    hint: Some("Choose the installed signed v0.977.3 release binary for this platform.".into()),
+                    message: "Runtime execution is pinned to signed Vela v0.977.6 with the reviewed platform hash.".into(),
+                    hint: Some("Choose the installed signed v0.977.6 release binary for this platform.".into()),
                     command: "vela --version".into(),
                     operation_id: None,
                     changed: None,
@@ -1277,19 +1281,67 @@ pub(crate) fn import_submission(
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::{
+        fs,
+        io::Write,
+        path::Path,
+        process::{Command, Stdio},
+    };
 
     use super::{
-        ClaimsV1Wire, DsseEnvelopeWire, Envelope, IntegrationCheckV1Wire,
-        IntegrationInspectionV1Wire, PLATFORM_RUNTIME_SHA256, PublicationWire, RUNTIME_VERSION,
-        RecoveryInspectionV1Wire, StatusV4Wire, SubmissionPayloadPreviewWire, SubmitResultV1Wire,
-        VelaBinaryStateDto, accepted_runtime_sha256, inspect_binary, parse_envelope,
-        validate_claims, validate_integration, validate_recovery_inspection, validate_status,
+        ClaimsV1Wire, DsseEnvelopeWire, Envelope, INTERFACE_COMMIT, INTERFACE_TREE,
+        IntegrationCheckV1Wire, IntegrationInspectionV1Wire, PLATFORM_RUNTIME_SHA256,
+        PublicationWire, RUNTIME_COMMIT, RUNTIME_VERSION, RecoveryInspectionV1Wire, StatusV4Wire,
+        SubmissionPayloadPreviewWire, SubmitResultV1Wire, VelaBinaryStateDto,
+        accepted_runtime_sha256, inspect_binary, parse_envelope, runtime_state, validate_claims,
+        validate_integration, validate_recovery_inspection, validate_status,
         validate_submit_result,
     };
     use crate::ports::ProcessOutput;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use sha2::{Digest, Sha256};
+
+    const RELEASE_TAG: &str = "v0.977.6";
+    const RELEASE_TAG_OBJECT: &str = "4a562d4529f6a329d938fc427bc73c4cbff90767";
+    const PROTOCOL_1_ROOT: &str =
+        "sha256:bf1ef68165bccbc4d2e8a854f78c70448cc7de771bac23329f7a8ca115303f56";
+    const RELEASE_SIGNER: &str = "release@vela.space";
+    const RELEASE_SIGNER_FINGERPRINT: &str = "SHA256:MX3Eo1o9S5pLnx2kiNyAy2aME7PAWDtvqtUBljJst1M";
+    const RELEASE_SIGNATURE_NAMESPACE: &str = "vela-release";
+
+    struct ReleasePlatformIdentity {
+        platform: &'static str,
+        architecture: &'static str,
+        archive_name: &'static str,
+        archive_sha256: &'static str,
+        manifest_name: &'static str,
+        manifest_sha256: &'static str,
+        manifest_signature_sha256: &'static str,
+        binary_sha256: &'static str,
+    }
+
+    const RELEASE_PLATFORMS: [ReleasePlatformIdentity; 2] = [
+        ReleasePlatformIdentity {
+            platform: "macos",
+            architecture: "aarch64",
+            archive_name: "vela-macos-aarch64.zip",
+            archive_sha256: "62ea9006e086b40f0431b2ce2cf74827518f37dc58e329353920083f50dad874",
+            manifest_name: "vela-macos-aarch64.zip.release-manifest.json",
+            manifest_sha256: "596273b718661899ad10cb65d82c8c0d92240939899e72042180ef4912acfa2c",
+            manifest_signature_sha256: "f4bbfe43dd3528b9a3a2de6f5efd00a7e1585aa1d813cbe09841bf35a42d123b",
+            binary_sha256: "5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3",
+        },
+        ReleasePlatformIdentity {
+            platform: "linux",
+            architecture: "x86_64",
+            archive_name: "vela-linux-x86_64.tar.gz",
+            archive_sha256: "a8cb120a01211fbb40b5da6d697b0fc8e4a84b0d76e62cfa574a2518bdebb83e",
+            manifest_name: "vela-linux-x86_64.tar.gz.release-manifest.json",
+            manifest_sha256: "495626ddf9ca286ffbc173df268edef73ae44b0a87f7f2b46d8fdbcdf38d8a25",
+            manifest_signature_sha256: "8e0481f1e7aab844584cc7db414ca567e2c7b7c03f8e9aabf98a38e164565272",
+            binary_sha256: "e476ece52cb5f356519f890533f06c918fb10f3dd00268092d490701f7fd1b65",
+        },
+    ];
 
     fn fixture(path: &str) -> ProcessOutput {
         ProcessOutput {
@@ -1308,6 +1360,15 @@ mod tests {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect()
+    }
+
+    fn current_release_fixture(name: &str) -> Vec<u8> {
+        fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../fixtures/core/v0.977.6/release")
+                .join(name),
+        )
+        .expect("current release fixture")
     }
 
     #[test]
@@ -1418,6 +1479,136 @@ mod tests {
             linux["binary"]["sha256"],
             "sha256:89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0"
         );
+    }
+
+    #[test]
+    fn current_release_acquisition_binds_exact_signed_v09776_platforms() {
+        assert_eq!(RELEASE_TAG, "v0.977.6");
+        assert_eq!(
+            RELEASE_TAG_OBJECT,
+            "4a562d4529f6a329d938fc427bc73c4cbff90767"
+        );
+        assert_eq!(INTERFACE_COMMIT, "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59");
+        assert_eq!(INTERFACE_TREE, "1332713f627ac73c235e4f9a7afe206499717154");
+        assert_eq!(RUNTIME_COMMIT, INTERFACE_COMMIT);
+        assert_eq!(
+            PROTOCOL_1_ROOT,
+            "sha256:bf1ef68165bccbc4d2e8a854f78c70448cc7de771bac23329f7a8ca115303f56"
+        );
+        assert_eq!(RELEASE_SIGNER, "release@vela.space");
+        assert_eq!(
+            RELEASE_SIGNER_FINGERPRINT,
+            "SHA256:MX3Eo1o9S5pLnx2kiNyAy2aME7PAWDtvqtUBljJst1M"
+        );
+        assert_eq!(RELEASE_SIGNATURE_NAMESPACE, "vela-release");
+        assert_eq!(
+            digest_hex(&current_release_fixture("allowed_signers")),
+            "dc471fc1ff1960879f39cc52cbe46b87142e1ccfb3b4d567eaae9ac4d26d0d10"
+        );
+
+        for identity in &RELEASE_PLATFORMS {
+            let manifest_bytes = current_release_fixture(identity.manifest_name);
+            assert_eq!(digest_hex(&manifest_bytes), identity.manifest_sha256);
+            let signature_bytes =
+                current_release_fixture(&format!("{}.sig", identity.manifest_name));
+            assert_eq!(
+                digest_hex(&signature_bytes),
+                identity.manifest_signature_sha256
+            );
+            let manifest: serde_json::Value =
+                serde_json::from_slice(&manifest_bytes).expect("current release manifest JSON");
+            assert_eq!(manifest["schema"], "vela.release-bundle-manifest.v1");
+            assert_eq!(manifest["release"]["tag"], RELEASE_TAG);
+            assert_eq!(manifest["release"]["version"], "0.977.6");
+            assert_eq!(manifest["source"]["commit"], INTERFACE_COMMIT);
+            assert_eq!(manifest["source"]["tree"], INTERFACE_TREE);
+            assert_eq!(manifest["target"]["platform"], identity.platform);
+            assert_eq!(manifest["target"]["architecture"], identity.architecture);
+            assert_eq!(
+                manifest["binary"]["sha256"],
+                format!("sha256:{}", identity.binary_sha256)
+            );
+            assert_eq!(
+                manifest["signature"]["namespace"],
+                RELEASE_SIGNATURE_NAMESPACE
+            );
+            assert_eq!(
+                manifest["signature"]["sidecar"],
+                format!("{}.sig", identity.manifest_name)
+            );
+            let archive = manifest["assets"]
+                .as_array()
+                .expect("release assets")
+                .iter()
+                .find(|asset| asset["kind"] == "archive")
+                .expect("archive asset");
+            assert_eq!(archive["name"], identity.archive_name);
+            assert_eq!(
+                archive["sha256"],
+                format!("sha256:{}", identity.archive_sha256)
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn current_release_manifest_signatures_verify_and_tampering_fails() {
+        let release_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/core/v0.977.6/release");
+        for identity in &RELEASE_PLATFORMS {
+            let manifest = current_release_fixture(identity.manifest_name);
+            let verify = |bytes: &[u8]| {
+                let mut child = Command::new("ssh-keygen")
+                    .args([
+                        "-Y",
+                        "verify",
+                        "-f",
+                        release_root
+                            .join("allowed_signers")
+                            .to_str()
+                            .expect("UTF-8 path"),
+                        "-I",
+                        RELEASE_SIGNER,
+                        "-n",
+                        RELEASE_SIGNATURE_NAMESPACE,
+                        "-s",
+                        release_root
+                            .join(format!("{}.sig", identity.manifest_name))
+                            .to_str()
+                            .expect("UTF-8 path"),
+                    ])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .expect("ssh-keygen available on supported platform");
+                child
+                    .stdin
+                    .take()
+                    .expect("verification stdin")
+                    .write_all(bytes)
+                    .expect("write manifest to verifier");
+                child.wait_with_output().expect("signature verifier output")
+            };
+
+            let output = verify(&manifest);
+            assert!(
+                output.status.success(),
+                "signature failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let report = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(report.contains(RELEASE_SIGNER));
+            assert!(report.contains(RELEASE_SIGNER_FINGERPRINT));
+
+            let mut tampered = manifest.clone();
+            tampered.push(b' ');
+            assert!(!verify(&tampered).status.success());
+        }
     }
 
     #[test]
@@ -1649,12 +1840,24 @@ mod tests {
         all(target_os = "linux", target_arch = "x86_64")
     ))]
     #[test]
-    fn runtime_policy_accepts_only_signed_v09773_for_this_platform() {
-        assert_eq!(RUNTIME_VERSION, "vela 0.977.3");
+    fn runtime_policy_accepts_only_signed_v09776_for_this_platform() {
+        assert_eq!(RUNTIME_VERSION, "vela 0.977.6");
         assert!(accepted_runtime_sha256(PLATFORM_RUNTIME_SHA256));
-        assert!(!accepted_runtime_sha256(
-            "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c"
-        ));
+        assert_eq!(
+            runtime_state(PLATFORM_RUNTIME_SHA256, RUNTIME_VERSION),
+            VelaBinaryStateDto::SignedRuntimeBaseline
+        );
+        assert_eq!(
+            runtime_state(
+                "4332427789bf3dac83ebad9843670047b448f6ba370661f48a0100cbb61bc00c",
+                RUNTIME_VERSION
+            ),
+            VelaBinaryStateDto::Unsupported
+        );
+        assert_eq!(
+            runtime_state(PLATFORM_RUNTIME_SHA256, "vela 0.977.5"),
+            VelaBinaryStateDto::Unsupported
+        );
     }
 
     #[cfg(unix)]
@@ -1668,7 +1871,7 @@ mod tests {
         fs::write(
             &executable,
             format!(
-                "#!/bin/sh\ntouch '{}'\necho vela 0.977.3\n",
+                "#!/bin/sh\ntouch '{}'\necho vela 0.977.6\n",
                 marker.display()
             ),
         )

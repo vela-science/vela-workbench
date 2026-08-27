@@ -14,12 +14,13 @@ The renderer invokes a closed set of compiled private IPC commands. Rust canonic
 - Tauri CLI `2.11.4`, Tauri API `2.11.1`
 - Rust `1.97.1`, edition 2024
 - Bun lockfile with React `19.2.8`, TypeScript `5.8.3`, Vite `7.3.6`, Tailwind `4.3.3`, Base UI `1.7.0`
-- Signed Core release `v0.977.3`, commit `1c1abe8f365f16803fea889bf9280877992a6d02`, tree `66bb4cb5173ff50beeef45c03fa11060e1e9e377`, Protocol 1 manifest root `sha256:534120b2dfcfb8357d7f20be3e3a0e0dfbe21d0cd51082edb5dea686ca82ec85`
-- macOS arm64 runtime SHA-256 `3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad`; release manifest SHA-256 `b0da2d3e9a5d896fdfad96fe096c9caee5c66e54ed713bd0a0c408e14a1b65a0`
-- Linux x86_64 runtime SHA-256 `89e5f366db5480a011c722bdc7d3c7f09e07fe78c0cd2855d2e53d3a419520a0`; release manifest SHA-256 `3308d8867575f3703070b93f9a664a2e35f98bc1aac5a060efa4d3a5d1ae9b72`
+- Signed Core release `v0.977.6`, commit `9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59`, tree `1332713f627ac73c235e4f9a7afe206499717154`, signed tag object `4a562d4529f6a329d938fc427bc73c4cbff90767`, Protocol 1 manifest root `sha256:bf1ef68165bccbc4d2e8a854f78c70448cc7de771bac23329f7a8ca115303f56`
+- macOS arm64 archive SHA-256 `62ea9006e086b40f0431b2ce2cf74827518f37dc58e329353920083f50dad874`; runtime SHA-256 `5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3`; release manifest SHA-256 `596273b718661899ad10cb65d82c8c0d92240939899e72042180ef4912acfa2c`; manifest signature SHA-256 `f4bbfe43dd3528b9a3a2de6f5efd00a7e1585aa1d813cbe09841bf35a42d123b`
+- Linux x86_64 archive SHA-256 `a8cb120a01211fbb40b5da6d697b0fc8e4a84b0d76e62cfa574a2518bdebb83e`; runtime SHA-256 `e476ece52cb5f356519f890533f06c918fb10f3dd00268092d490701f7fd1b65`; release manifest SHA-256 `495626ddf9ca286ffbc173df268edef73ae44b0a87f7f2b46d8fdbcdf38d8a25`; manifest signature SHA-256 `8e0481f1e7aab844584cc7db414ca567e2c7b7c03f8e9aabf98a38e164565272`
+- Both release manifests verify as `release@vela.space`, namespace `vela-release`, key fingerprint `SHA256:MX3Eo1o9S5pLnx2kiNyAy2aME7PAWDtvqtUBljJst1M`, using the namespace-scoped `allowed_signers` at the exact Core release commit; `allowed_signers` SHA-256 `dc471fc1ff1960879f39cc52cbe46b87142e1ccfb3b4d567eaae9ac4d26d0d10`
 - WB-OPENGAUSS-01 observed against `math-inc/OpenGauss` version `0.2.2`, commit `f87633900ae185b8037bf451a914fe7eeae1eb08`, tree `aa3768f7cf5dd06d01a972bc8ed789f7b43246fb`; OpenGauss is never bundled
 
-The interface fixtures and executable gating name the same immutable signed v0.977.3 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate paths.
+Executable gating and the current release fixtures name the same immutable signed v0.977.6 release. Each supported build accepts exactly one platform binary hash and one runtime version; earlier releases are not alternate runtime paths. The frozen v0.977.3 interface fixtures remain compatibility and historical evidence and are never rewritten by a repin.
 
 ## Continue a Problem locally
 

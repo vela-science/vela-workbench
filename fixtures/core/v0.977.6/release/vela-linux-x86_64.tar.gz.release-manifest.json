@@ -1,0 +1,107 @@
+{
+  "assets": [
+    {
+      "bytes": 3150686,
+      "kind": "archive",
+      "name": "vela-linux-x86_64.tar.gz",
+      "sha256": "sha256:a8cb120a01211fbb40b5da6d697b0fc8e4a84b0d76e62cfa574a2518bdebb83e"
+    },
+    {
+      "bytes": 130941,
+      "kind": "sbom",
+      "name": "vela-linux-x86_64.tar.gz.spdx.json",
+      "sha256": "sha256:c1328ece0678dcbd22b01cc0a9e99f156fcb7368348fdd72a6d6182ab4631906"
+    }
+  ],
+  "attestation": {
+    "build_provenance": "actions/attest-build-provenance",
+    "note": "actions/attest-build-provenance is bound to a GitHub Actions OIDC identity and has no provider-neutral equivalent, so it stays in .github/workflows/release.yml and is absent from a local build. This manifest binds the same bytes without it; it does not replace it.",
+    "provider_neutral": false
+  },
+  "binary": {
+    "name": "vela",
+    "sha256": "sha256:e476ece52cb5f356519f890533f06c918fb10f3dd00268092d490701f7fd1b65"
+  },
+  "build": {
+    "cargo_auditable_version": "0.7.5",
+    "command": "cargo auditable build --locked --release -p vela-cli --bin vela --target x86_64-unknown-linux-musl",
+    "entry_point": "scripts/release.sh",
+    "provider": "github-actions",
+    "reproducibility": {
+      "archive_builds_compared": 2,
+      "binary_builds_compared": 2,
+      "build_path": "/src/vela",
+      "source_date_epoch": 1787792444
+    },
+    "sbom": {
+      "format": "spdx-json",
+      "tool": "syft",
+      "tool_version": "1.50.0"
+    }
+  },
+  "generated_at": "2026-08-27T01:00:44Z",
+  "licenses": {
+    "generator": "cargo-about",
+    "generator_version": "0.8.4",
+    "inputs": [
+      {
+        "name": "Cargo.lock",
+        "sha256": "sha256:2739d0c8822d1a394d52aedc6156ae12c50e120abca7056cdb4827c6dc019f1c"
+      },
+      {
+        "name": "about.toml",
+        "sha256": "sha256:35246dfa52f11d02d6720715a896a5c47cb7c21b16c4ca811a30f3459c64f855"
+      },
+      {
+        "name": "cargo-about-version",
+        "sha256": "sha256:cf6a05db55c83ecdf0b3323be40d441e20f4bbd3860a3f4104a9dab70fbae161"
+      },
+      {
+        "name": "deny.toml",
+        "sha256": "sha256:9bf58cf01f4681b824013f1b5edff1bc95a78c2ba1179c0500379b8a02a093b5"
+      },
+      {
+        "name": "normalizer",
+        "sha256": "sha256:ed525841fe17ff46f49881006a5513497a52949c5b070b55143e37684d28be0a"
+      },
+      {
+        "name": "selected-graph-generator",
+        "sha256": "sha256:dfdf2727a6b32d986132cdec3ef5ac60ea62ee99ecce155692481af011048b1b"
+      },
+      {
+        "name": "selected-release-graph",
+        "sha256": "sha256:1e5c5ccc2844e6dc77bd9771c927e50ca0c3835a33ec0cb2038db64af89c605d"
+      }
+    ],
+    "notices": {
+      "name": "THIRD-PARTY-LICENSES.txt",
+      "sha256": "sha256:0c12502f650d474a3d6341e6a4e54db5929374b07bbacabcd85f737561cd6f34"
+    }
+  },
+  "release": {
+    "tag": "v0.977.6",
+    "version": "0.977.6"
+  },
+  "schema": "vela.release-bundle-manifest.v1",
+  "signature": {
+    "namespace": "vela-release",
+    "note": "Signed out of band as a detached OpenSSH signature over these exact bytes, namespace vela-release. The signing identity is a distribution identity. It is never the repository-authority key: publishing software is not a scientific Decision (docs/SIGNING.md).",
+    "sidecar": "vela-linux-x86_64.tar.gz.release-manifest.json.sig"
+  },
+  "source": {
+    "available": true,
+    "commit": "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59",
+    "dirty": false,
+    "remote": "https://github.com/vela-science/vela",
+    "tree": "1332713f627ac73c235e4f9a7afe206499717154"
+  },
+  "target": {
+    "architecture": "x86_64",
+    "platform": "linux",
+    "triple": "x86_64-unknown-linux-musl"
+  },
+  "toolchain": {
+    "channel": "1.97.1",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+  }
+}

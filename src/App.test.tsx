@@ -6,11 +6,11 @@ import type { BootstrapDto, ProblemHandoffDto, RepositorySnapshotDto } from "./c
 const bootstrap: BootstrapDto = {
   preferences: { recent_repositories: [], vela_binary_path: "/usr/local/bin/vela" },
   runtime: {
-    interface_commit: "1c1abe8f365f16803fea889bf9280877992a6d02",
-    interface_tree: "66bb4cb5173ff50beeef45c03fa11060e1e9e377",
-    runtime_version: "vela 0.977.3",
-    runtime_commit: "1c1abe8f365f16803fea889bf9280877992a6d02",
-    runtime_sha256: "3a1173918bdcb887155bab681411bf5e9ff64d925fe1b50369ac37ab020b94ad",
+    interface_commit: "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59",
+    interface_tree: "1332713f627ac73c235e4f9a7afe206499717154",
+    runtime_version: "vela 0.977.6",
+    runtime_commit: "9ac8e7730bfb63a3b8eb1d2e1d91081c3e703c59",
+    runtime_sha256: "5b21415c98503b20518c0e68714b0b4f4b3c371525ea110563b89a53a0d3dbb3",
     read_only: false,
     tranche: "3",
     mutation_scope: "explicit_verification_and_attributed_repository_decision",
@@ -35,7 +35,7 @@ const snapshot: RepositorySnapshotDto = {
     entire_checkpoints: [],
   },
   vela: {
-    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.3", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
+    binary: { path: "/usr/local/bin/vela", version: "vela 0.977.6", sha256: bootstrap.runtime.runtime_sha256, state: "signed_runtime_baseline" },
     status: {
       repository_id: "vela-math", repository_name: "Vela Math", repository_profile_root: "profile-root",
       repository_root: "repository-root", origin_root: "origin-root", authority_keyset_root: "keys-root",
@@ -235,7 +235,7 @@ describe("Vela Workbench product loop", () => {
     render(<App />);
     expect(await screen.findByText("Continue local scientific work")).toBeVisible();
     expect(screen.getByText("Private files, credentials, and evidence stay local.")).toBeVisible();
-    expect(await screen.findByText("vela 0.977.3")).toBeVisible();
+    expect(await screen.findByText("vela 0.977.6")).toBeVisible();
   });
 
   it("reviews a browser handoff before binding the exact local source", async () => {

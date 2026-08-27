@@ -6,7 +6,7 @@ Vela Workbench is a single-user macOS Tauri app whose Rust host crosses local fi
 
 ## Scope and assumptions
 
-In scope: `src-tauri/src/commands`, `src-tauri/src/ports`, `src-tauri/src/contracts`, Tauri capability/CSP, generated bindings, and the five renderer surfaces. Runtime is local, single-user, bundled-only and macOS arm64, with no listener or remote WebView. Repositories, evidence, envelopes and renderer inputs are untrusted. Signed Vela v0.977.3 and an explicitly available SSH agent are trusted only through closed commands. Mutating tests use disposable Repositories. Web, Core, providers, real scientific state, release infrastructure and Linux/BSD distribution are out of scope.
+In scope: `src-tauri/src/commands`, `src-tauri/src/ports`, `src-tauri/src/contracts`, Tauri capability/CSP, generated bindings, and the five renderer surfaces. Runtime is local, single-user, bundled-only and macOS arm64, with no listener or remote WebView. Repositories, evidence, envelopes and renderer inputs are untrusted. Signed Vela v0.977.6 and an explicitly available SSH agent are trusted only through closed commands. Mutating tests use disposable Repositories. Web, Core, providers, real scientific state, release infrastructure and Linux/BSD distribution are out of scope.
 
 The user supplied deployment, exposure, authority, sensitivity and non-goal context, so no unresolved service-context question blocks this model. Re-rank if the app becomes multi-user, accepts remote content, gains generic IPC, or distributes on another platform.
 

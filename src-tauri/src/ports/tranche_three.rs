@@ -52,7 +52,7 @@ fn exact_binary(binary: &Path) -> Result<crate::contracts::VelaBinaryDto, PortEr
     let identity = super::vela::inspect_binary(binary)?;
     if identity.state != crate::contracts::VelaBinaryStateDto::SignedRuntimeBaseline {
         return Err(PortError::Unsupported(
-            "Vela Repository actions require the exact signed Vela v0.977.3 runtime".into(),
+            "Vela Repository actions require the exact signed Vela v0.977.6 runtime".into(),
         ));
     }
     Ok(identity)
@@ -1000,7 +1000,7 @@ pub(crate) fn preview_decision(
         DecisionActionDto::Reject => current.standing_delta.if_reject.clone(),
     };
     Ok(DecisionPreviewDto { request, repository_path: repository.display().to_string(), source_commit: git.head_commit.clone(), source_tree: git.head_tree.clone(), vela_binary_sha256: exact_binary(binary)?.sha256, entry: current, performer_kind,
-        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.3 exposes the actual principal only in the Decision result/readback.".into(),
+        repository_authority_principal: "Resolved and authenticated by signed Vela at execution; v0.977.6 exposes the actual principal only in the Decision result/readback.".into(),
         authentication: "local_os_session".into(), transaction_signer: "repository_authority".into(), ssh_agent_forwarded: std::env::var_os("SSH_AUTH_SOCK").is_some(), argv, expected_successor,
         warning: "This is the only authority-changing step. Verification outcome remains separate. Vela authenticates the Repository principal, evaluates policy, signs the transaction, and rejects any stale entry root.".into() })
 }
