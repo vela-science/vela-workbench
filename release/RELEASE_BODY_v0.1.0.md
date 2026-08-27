@@ -67,7 +67,7 @@ xcrun stapler validate "Vela Workbench_0.1.0_aarch64.dmg"
    binary and is refused.
 5. Start from a Problem on problems.science and choose **Continue locally**.
    Full first-run and handoff steps are in
-   [INSTALL.md](https://github.com/vela-science/vela-workbench/blob/main/INSTALL.md).
+   [INSTALL.md](https://github.com/vela-science/workbench/blob/main/INSTALL.md).
 
 ## Rollback
 
