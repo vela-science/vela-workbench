@@ -51,6 +51,7 @@ pub(crate) struct ProcessSpec {
     pub max_stdout: usize,
     pub max_stderr: usize,
     pub path_prefix: Option<PathBuf>,
+    environment: Vec<(OsString, OsString)>,
     /// Forward only the standard SSH agent socket path to a command whose
     /// closed contract explicitly requires Repository-authority signing.
     pub include_ssh_auth_sock: bool,
@@ -66,6 +67,7 @@ impl ProcessSpec {
             max_stdout: 2 * 1024 * 1024,
             max_stderr: 256 * 1024,
             path_prefix: None,
+            environment: Vec::new(),
             include_ssh_auth_sock: false,
         }
     }
@@ -79,6 +81,12 @@ impl ProcessSpec {
             .into_iter()
             .map(|arg| arg.as_ref().to_os_string())
             .collect();
+        self
+    }
+
+    pub(crate) fn env(mut self, name: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> Self {
+        self.environment
+            .push((name.as_ref().to_os_string(), value.as_ref().to_os_string()));
         self
     }
 }
@@ -140,9 +148,13 @@ fn explicit_environment(
     command: &mut Command,
     path_prefix: Option<&Path>,
     include_ssh_auth_sock: bool,
+    environment: &[(OsString, OsString)],
 ) {
     command.env_clear();
     for (name, value) in environment_values(path_prefix, include_ssh_auth_sock) {
+        command.env(name, value);
+    }
+    for (name, value) in environment {
         command.env(name, value);
     }
 }
@@ -208,6 +220,7 @@ pub(crate) fn run_bounded(spec: ProcessSpec) -> Result<ProcessOutput, PortError>
         &mut command,
         spec.path_prefix.as_deref(),
         spec.include_ssh_auth_sock,
+        &spec.environment,
     );
 
     let mut child = command.spawn().map_err(|error| {
@@ -333,6 +346,7 @@ pub(crate) fn run_cancellable(
         &mut command,
         spec.path_prefix.as_deref(),
         spec.include_ssh_auth_sock,
+        &spec.environment,
     );
     let mut child = command.spawn().map_err(|error| {
         PortError::Unavailable(format!("start {}: {error}", spec.program.display()))

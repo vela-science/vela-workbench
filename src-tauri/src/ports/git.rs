@@ -1,6 +1,8 @@
 use std::{
     ffi::OsString,
+    fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
@@ -16,6 +18,9 @@ use super::{
 
 const LOG_FORMAT: &str =
     "%H%x00%T%x00%(trailers:key=Entire-Checkpoint,valueonly,separator=%x1f)%x00";
+const CHECK_ATTR_ARG_BYTES: usize = 128 * 1024;
+const CHECK_ATTR_PATHS: usize = 16 * 1024;
+static TEMP_INDEX_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(target_os = "macos")]
 const GIT_PROGRAM: &str = "/usr/bin/git";
@@ -50,6 +55,15 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, PortError> {
 }
 
 fn run_git_os(root: &Path, args: Vec<OsString>, timeout: Duration) -> Result<String, PortError> {
+    run_git_os_with_index(root, args, timeout, None)
+}
+
+fn run_git_os_with_index(
+    root: &Path,
+    args: Vec<OsString>,
+    timeout: Duration,
+    index: Option<&Path>,
+) -> Result<String, PortError> {
     let root = canonical_directory(root)?;
     let mut argv = vec![
         OsString::from("--no-optional-locks"),
@@ -57,11 +71,21 @@ fn run_git_os(root: &Path, args: Vec<OsString>, timeout: Duration) -> Result<Str
         OsString::from("core.fsmonitor=false"),
         OsString::from("-c"),
         OsString::from("core.hooksPath=/dev/null"),
-        OsString::from("-C"),
-        root.as_os_str().to_os_string(),
     ];
+    if index.is_some() {
+        argv.extend([
+            OsString::from("-c"),
+            OsString::from("core.splitIndex=false"),
+            OsString::from("-c"),
+            OsString::from("core.sparseCheckout=false"),
+        ]);
+    }
+    argv.extend([OsString::from("-C"), root.as_os_str().to_os_string()]);
     argv.extend(args);
     let mut spec = ProcessSpec::new(GIT_PROGRAM, &root).args(argv);
+    if let Some(index) = index {
+        spec = spec.env("GIT_INDEX_FILE", index.as_os_str());
+    }
     spec.timeout = timeout;
     let output = run_bounded(spec)?;
     ensure_not_truncated(&output, "git")?;
@@ -74,6 +98,73 @@ fn run_git_os(root: &Path, args: Vec<OsString>, timeout: Duration) -> Result<Str
         )));
     }
     utf8(&output.stdout, "git stdout")
+}
+
+#[cfg(unix)]
+fn create_private_directory(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+
+    fs::DirBuilder::new().mode(0o700).create(path)
+}
+
+#[cfg(not(unix))]
+fn create_private_directory(path: &Path) -> io::Result<()> {
+    fs::create_dir(path)
+}
+
+struct TemporaryGitIndex {
+    directory: Option<PathBuf>,
+    index: PathBuf,
+}
+
+impl TemporaryGitIndex {
+    fn new(parent: &Path) -> Result<Self, PortError> {
+        let parent = canonical_directory(parent)?;
+        for _ in 0..1024 {
+            let sequence = TEMP_INDEX_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let directory = parent.join(format!(
+                ".vela-workbench-git-index-{}-{sequence}",
+                std::process::id()
+            ));
+            match create_private_directory(&directory) {
+                Ok(()) => {
+                    return Ok(Self {
+                        index: directory.join("index"),
+                        directory: Some(directory),
+                    });
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(PortError::Process(format!(
+                        "create temporary Git index directory: {error}"
+                    )));
+                }
+            }
+        }
+        Err(PortError::Process(
+            "could not allocate a unique temporary Git index directory".into(),
+        ))
+    }
+
+    fn close(mut self) -> Result<(), PortError> {
+        let Some(directory) = self.directory.take() else {
+            return Ok(());
+        };
+        fs::remove_dir_all(&directory).map_err(|error| {
+            PortError::Process(format!(
+                "remove temporary Git index directory {}: {error}",
+                directory.display()
+            ))
+        })
+    }
+}
+
+impl Drop for TemporaryGitIndex {
+    fn drop(&mut self) {
+        if let Some(directory) = self.directory.take() {
+            let _ = fs::remove_dir_all(directory);
+        }
+    }
 }
 
 fn validated_ref(value: &str) -> Result<&str, PortError> {
@@ -154,17 +245,22 @@ fn empty_destination(path: &Path) -> Result<PathBuf, PortError> {
     Ok(canonical)
 }
 
-fn refuse_checkout_filters(root: &Path, target_commit: &str) -> Result<(), PortError> {
-    let names = run_git_os(
+fn inspect_checkout_filters(
+    root: &Path,
+    target_commit: &str,
+    index: &Path,
+) -> Result<(), PortError> {
+    run_git_os_with_index(
         root,
-        vec![
-            OsString::from("ls-tree"),
-            OsString::from("-r"),
-            OsString::from("-z"),
-            OsString::from("--name-only"),
-            OsString::from(target_commit),
-        ],
+        vec![OsString::from("read-tree"), OsString::from(target_commit)],
         Duration::from_secs(15),
+        Some(index),
+    )?;
+    let names = run_git_os_with_index(
+        root,
+        vec![OsString::from("ls-files"), OsString::from("-z")],
+        Duration::from_secs(15),
+        Some(index),
     )?;
     let paths: Vec<&str> = names
         .split('\0')
@@ -176,25 +272,61 @@ fn refuse_checkout_filters(root: &Path, target_commit: &str) -> Result<(), PortE
             "target tree is too large for bounded checkout-filter validation".into(),
         ));
     }
-    let mut args = vec![
-        OsString::from("check-attr"),
-        OsString::from("-z"),
-        OsString::from(format!("--source={target_commit}")),
-        OsString::from("--all"),
-        OsString::from("--"),
-    ];
-    args.extend(paths.iter().map(OsString::from));
-    let attributes = run_git_os(root, args, Duration::from_secs(15))?;
-    let fields: Vec<&str> = attributes.split('\0').collect();
-    for row in fields.chunks(3) {
-        if row.len() == 3 && !row[0].is_empty() && row[1] == "filter" {
-            return Err(PortError::Unsupported(format!(
-                "target tree assigns checkout filter attribute {:?}; Workbench will not execute repository-configured smudge/process filters",
-                row[2]
-            )));
+
+    let mut offset = 0;
+    while offset < paths.len() {
+        let mut end = offset;
+        let mut bytes = 0;
+        while end < paths.len()
+            && end - offset < CHECK_ATTR_PATHS
+            && (end == offset || bytes + paths[end].len() < CHECK_ATTR_ARG_BYTES)
+        {
+            bytes += paths[end].len() + 1;
+            end += 1;
         }
+        let mut args = vec![
+            OsString::from("check-attr"),
+            OsString::from("--cached"),
+            OsString::from("-z"),
+            OsString::from("--all"),
+            OsString::from("--"),
+        ];
+        args.extend(paths[offset..end].iter().map(OsString::from));
+        let attributes = run_git_os_with_index(root, args, Duration::from_secs(15), Some(index))?;
+        let fields: Vec<&str> = attributes.split('\0').collect();
+        for row in fields.chunks(3) {
+            if row.len() == 3 && !row[0].is_empty() && row[1] == "filter" {
+                return Err(PortError::Unsupported(format!(
+                    "target tree assigns checkout filter attribute {:?}; Workbench will not execute repository-configured smudge/process filters",
+                    row[2]
+                )));
+            }
+        }
+        offset = end;
     }
     Ok(())
+}
+
+fn refuse_checkout_filters_in(
+    root: &Path,
+    target_commit: &str,
+    temporary_parent: &Path,
+) -> Result<(), PortError> {
+    let temporary = TemporaryGitIndex::new(temporary_parent)?;
+    let result = inspect_checkout_filters(root, target_commit, &temporary.index);
+    let cleanup = temporary.close();
+    match (result, cleanup) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(()), Err(error)) => Err(error),
+        (Err(error), Err(cleanup)) => Err(PortError::Process(format!(
+            "{error}; temporary Git index cleanup also failed: {cleanup}"
+        ))),
+    }
+}
+
+fn refuse_checkout_filters(root: &Path, target_commit: &str) -> Result<(), PortError> {
+    refuse_checkout_filters_in(root, target_commit, &std::env::temp_dir())
 }
 
 pub(crate) fn preview_worktree(
@@ -525,12 +657,48 @@ fn redact_remote_url(raw: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs, path::Path, process::Command};
+    use std::{collections::BTreeMap, fs, path::Path, process::Command, thread};
 
     use super::{
         GIT_PROGRAM, create_worktree, inspect, parse_log, parse_remotes, parse_status,
-        parse_worktrees, preview_worktree, require_tracked_clean_at_head,
+        parse_worktrees, preview_worktree, refuse_checkout_filters_in,
+        require_tracked_clean_at_head,
     };
+
+    fn git(root: &Path, args: &[&str]) -> String {
+        let output = Command::new(GIT_PROGRAM)
+            .args(args)
+            .current_dir(root)
+            .output()
+            .expect("run git fixture command");
+        assert!(
+            output.status.success(),
+            "git fixture command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout)
+            .expect("git fixture output is UTF-8")
+            .trim()
+            .to_string()
+    }
+
+    fn commit_all(root: &Path, message: &str) -> String {
+        git(root, &["add", "-A"]);
+        git(
+            root,
+            &[
+                "-c",
+                "user.name=Vela Test",
+                "-c",
+                "user.email=test@invalid.example",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ],
+        );
+        git(root, &["rev-parse", "HEAD"])
+    }
 
     fn bytes_under(path: &Path, root: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
         let mut entries: Vec<_> = fs::read_dir(path)
@@ -795,6 +963,69 @@ mod tests {
         let error = preview_worktree(&root, "HEAD", &filtered_destination)
             .expect_err("repository checkout filter must be refused before Git mutation");
         assert!(error.to_string().contains("checkout filter attribute"));
+        assert!(!marker.exists());
+    }
+
+    #[test]
+    fn checkout_filter_validation_is_exact_clean_bounded_and_concurrent() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path().join("source");
+        let indexes = temp.path().join("indexes");
+        fs::create_dir(&root).expect("source");
+        fs::create_dir(&indexes).expect("indexes");
+        git(&root, &["init", "-q"]);
+        fs::write(root.join("result.txt"), "bounded evidence\n").expect("fixture");
+        let clean_commit = commit_all(&root, "clean target");
+
+        let marker = temp.path().join("smudge-executed");
+        git(
+            &root,
+            &[
+                "config",
+                "filter.unspecified.smudge",
+                &format!("/bin/sh -c 'touch {}; cat'", marker.display()),
+            ],
+        );
+        for (assignment, message) in [
+            ("*.txt filter=unspecified\n", "valued filter"),
+            ("*.txt filter\n", "set filter"),
+            ("*.txt -filter\n", "unset filter"),
+        ] {
+            fs::write(root.join(".gitattributes"), assignment).expect("attributes");
+            let hostile_commit = commit_all(&root, message);
+            let error = refuse_checkout_filters_in(&root, &hostile_commit, &indexes)
+                .expect_err("all filter assignments must fail closed");
+            assert!(error.to_string().contains("checkout filter attribute"));
+            assert!(!marker.exists());
+            assert_eq!(fs::read_dir(&indexes).expect("read indexes").count(), 0);
+        }
+
+        fs::write(root.join(".gitattributes"), "*.txt filter=working-tree\n")
+            .expect("hostile checked-out tree");
+        refuse_checkout_filters_in(&root, &clean_commit, &indexes)
+            .expect("clean exact target must ignore hostile selected index and checkout");
+        assert_eq!(fs::read_dir(&indexes).expect("read indexes").count(), 0);
+
+        let mut workers = Vec::new();
+        for _ in 0..8 {
+            let root = root.clone();
+            let indexes = indexes.clone();
+            let clean_commit = clean_commit.clone();
+            workers.push(thread::spawn(move || {
+                refuse_checkout_filters_in(&root, &clean_commit, &indexes)
+                    .expect("concurrent exact-tree validation");
+            }));
+        }
+        for worker in workers {
+            worker.join().expect("validation worker");
+        }
+        assert_eq!(fs::read_dir(&indexes).expect("read indexes").count(), 0);
+
+        for invalid in ["not-a-commit", "0000000000000000000000000000000000000000"] {
+            refuse_checkout_filters_in(&root, invalid, &indexes)
+                .expect_err("invalid target must fail closed");
+            assert_eq!(fs::read_dir(&indexes).expect("read indexes").count(), 0);
+        }
         assert!(!marker.exists());
     }
 
